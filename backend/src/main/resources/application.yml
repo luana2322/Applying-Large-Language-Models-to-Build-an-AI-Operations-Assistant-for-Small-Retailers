@@ -1,0 +1,26 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: retail-assistant-backend
+  datasource:
+    url: jdbc:h2:mem:retaildb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driverClassName: org.h2.Driver
+    username: sa
+    password: 
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+
+app:
+  ai-service-url: ${AI_SERVICE_URL:http://localhost:8000}
+  internal-auth-token: ${INTERNAL_AUTH_TOKEN:retail-internal-secret-token-v1}
+  seed-data:
+    # Demo/seed business data is for local dev & tests only. Set to false in production
+    # so that real ERP/POS data is never mixed with generated sample data.
+    enabled: ${APP_SEED_DATA_ENABLED:true}
+  ai:
+    max-stored-chars: ${AI_MAX_STORED_CHARS:20000}
