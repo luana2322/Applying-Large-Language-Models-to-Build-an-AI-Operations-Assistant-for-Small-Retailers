@@ -2,9 +2,9 @@ package com.retail.assistant;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.retail.assistant.domain.entity.Store;
-import com.retail.assistant.domain.repository.StoreRepository;
-import com.retail.assistant.domain.service.AiConversationService;
+import com.retail.assistant.domain.entity.system.Store;
+import com.retail.assistant.domain.repository.system.StoreRepository;
+import com.retail.assistant.domain.service.ai.AiConversationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

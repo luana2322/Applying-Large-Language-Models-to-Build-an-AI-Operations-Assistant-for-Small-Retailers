@@ -1,7 +1,19 @@
 package com.retail.assistant.config;
 
-import com.retail.assistant.domain.entity.*;
-import com.retail.assistant.domain.repository.*;
+import com.retail.assistant.domain.entity.system.*;
+import com.retail.assistant.domain.entity.catalog.*;
+import com.retail.assistant.domain.entity.supplier.*;
+import com.retail.assistant.domain.entity.sales.*;
+import com.retail.assistant.domain.entity.inventory.*;
+import com.retail.assistant.domain.entity.finance.*;
+import com.retail.assistant.domain.entity.audit.*;
+import com.retail.assistant.domain.entity.ai.*;
+import com.retail.assistant.domain.repository.system.*;
+import com.retail.assistant.domain.repository.catalog.*;
+import com.retail.assistant.domain.repository.sales.*;
+import com.retail.assistant.domain.repository.inventory.*;
+import com.retail.assistant.domain.repository.finance.*;
+import com.retail.assistant.domain.repository.ai.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
