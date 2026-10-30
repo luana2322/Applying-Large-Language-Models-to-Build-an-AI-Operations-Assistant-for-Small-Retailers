@@ -1,0 +1,78 @@
+/**
+ * Khớp camelCase với API mini-ERP (docs/api API_Task063–072).
+ */
+
+/** `GET|POST|PATCH /cash-transactions` — Task064–067 */
+export interface CashTransaction {
+  id: number
+  transactionCode: string
+  direction: "Income" | "Expense"
+  amount: number
+  category: string
+  description?: string | null
+  paymentMethod?: string
+  status: "Completed" | "Pending" | "Cancelled"
+  /** Ngày nghiệp vụ (ISO `YYYY-MM-DD`) */
+  transactionDate: string
+  financeLedgerId?: number | null
+  createdAt?: string
+  updatedAt?: string
+  createdBy?: number
+  createdByName?: string
+  performedBy?: number
+  performedByName?: string
+  fundId?: number | null
+  fundCode?: string | null
+  sourceKind?: "Manual" | "DebtCollection" | "DebtPayment" | "PurchasePayment"
+  cancelReason?: string | null
+}
+
+/** Alias cũ — cùng kiểu với `CashTransaction` */
+export type Transaction = CashTransaction
+
+/** `GET|POST|PATCH /debts` — Task069–072 */
+export interface PartnerDebt {
+  id: number
+  debtCode: string
+  partnerType: "Customer" | "Supplier"
+  /** Read-model từ join KH/NCC */
+  partnerName: string
+  customerId?: number | null
+  supplierId?: number | null
+  totalAmount: number
+  paidAmount: number
+  remainingAmount: number
+  dueDate?: string | null
+  status: "InDebt" | "Partial" | "Cleared"
+  notes?: string | null
+  createdAt?: string
+  updatedAt: string
+}
+
+export type Debt = PartnerDebt
+
+/** `GET|POST|PATCH /debt-payments` — Task070–072 */
+export interface DebtPayment {
+  id: number
+  debtId: number
+  cashTransactionId: number
+  amount: number
+  paidOn: string
+}
+
+/** `GET /finance-ledger` — Task063 */
+export interface FinanceLedgerEntry {
+  id: number
+  date: string
+  transactionCode: string
+  description: string | null
+  transactionType?: "SalesRevenue" | "PurchaseCost" | "OperatingExpense" | "Refund"
+  referenceType?: string | null
+  referenceId?: number | null
+  amount?: number
+  debit: number
+  credit: number
+  balance: number
+}
+
+export type LedgerEntry = FinanceLedgerEntry

@@ -1,142 +1,167 @@
-# AI Operations Assistant for Small Retailers
-> Hệ thống Trợ lý AI Điều hành Kinh doanh Thông minh cho Hộ kinh doanh & Cửa hàng Bán lẻ Quy mô Nhỏ.
+# Hệ thống Trợ lý AI Hỗ trợ Quản lý & Vận hành Cửa hàng Điện Nước, Thiết bị Vệ sinh
+*(AI-Powered Operations Assistant for Hardware, Electrical, Plumbing & Sanitary Ware Retailers)*
 
-Hệ thống được thiết kế theo đúng **Tài liệu Đặc tả Kỹ thuật (SRS 1.0)**, kết hợp kiến trúc đa tầng giữa **Spring Boot 3 (Backend nghiệp vụ)**, **FastAPI (AI Orchestrator)** và **LLM Tool Calling (Gemini / OpenAI / Deterministic Mock)**.
+> **Đồ án tốt nghiệp / Dự án ứng dụng:** Áp dụng Mô hình Ngôn ngữ Lớn (LLMs) vào Xây dựng Trợ lý Vận hành Thông minh cho Doanh nghiệp Bán lẻ Vừa và Nhỏ.
 
 ---
 
-## 🏛️ Kiến trúc Tổng thể (Architecture)
+## 1. Giới thiệu dự án
+
+Dự án tập trung giải quyết bài toán vận hành thực tế tại các cửa hàng kinh doanh **Vật tư Điện Nước, Thiết bị Vệ sinh (Lavabo, Bồn cầu, Sen vòi) và Gạch men hoàn thiện công trình** tại Việt Nam.
+
+Khác với phần mềm bán lẻ truyền thống, hệ thống kết hợp **Cơ sở dữ liệu quan hệ (PostgreSQL)**, **Backend nghiệp vụ (Spring Boot 3)**, **Frontend hiện đại (React Vite + Tailwind CSS)** và **Lớp trí tuệ AI (FastAPI + LangChain / LLM Tool Calling)** nhằm tự động hóa và hỗ trợ ra quyết định:
+1. **Quản lý công nợ công trình & AI nhắc nợ thông minh (Smart Debt Collection Assistant)**: Theo dõi nợ thợ điện nước, nhà thầu xây dựng theo từng công trình; phân tích tuổi nợ (aging debts) và sinh kịch bản nhắc nợ đa cấp độ gửi Zalo/SMS.
+2. **Quản lý kho hàng & AI Cảnh báo nhập hàng (Smart Inventory & Restock Copilot)**: Quản lý thuộc tính kỹ thuật (phi ống nước, tiết diện dây cáp, màu sắc men sứ), đơn vị quy đổi (cuộn $\leftrightarrow$ mét, cây $\leftrightarrow$ mét, thùng $\leftrightarrow$ m²); tự động cảnh báo chạm ngưỡng an toàn và lập dự thảo đơn nhập hàng.
+3. **Hệ thống Gợi ý Bán hàng & Phối ghép Combo (Sanitary Recommendation Engine)**:
+   - *Tư vấn phối màu gạch men*: Lavabo trắng sứ phối cùng gạch men vân đá Calacatta White mờ (sang trọng), gạch Terrazzo xám hạt mịn (tối giản) hoặc gạch thẻ xanh ngọc lục bảo (điểm nhấn).
+   - *Gợi ý trọn bộ phụ kiện tương thích*: Vòi thân cao đen mờ/chrome, bộ xả xi-phông nhấn nắp sứ trắng, cặp van góc Inox 304, keo silicone trung tính Apolo A500 chống mốc.
+   - *Chiết khấu Combo*: Tự động áp dụng giảm giá 5% khi chốt trọn bộ đơn hàng tại POS.
+4. **Trợ lý Điều hành AI (AI Operations Copilot)**: Phân tích doanh thu, hàng tồn lâu ngày, sức khỏe kinh doanh thông qua tương tác bằng tiếng Việt tự nhiên (không ảo giác dữ liệu tài chính).
+
+---
+
+## 2. Kiến trúc Hệ thống
+
+```mermaid
+graph TD
+    subgraph Client [Frontend (Port 3000 / 5173)]
+        UI_DASH[Dashboard Tổng quan & KPIs]
+        UI_POS[POS Bán hàng & Gợi ý Combo]
+        UI_REC[Gợi ý Phối Màu & Combo TBVS]
+        UI_DEBT[Sổ Nợ Công Trình & AI Nhắc Nợ]
+        UI_INV[Quản lý Kho & Quy đổi Đơn vị]
+    end
+
+    subgraph Backend [Backend Service (Port 8080)]
+        API_GATEWAY[Spring Boot 3 REST API]
+        SEC_AUTH[JWT Authentication & RBAC]
+        MOD_CATALOG[Quản lý Sản phẩm & Đơn vị tính]
+        MOD_DEBT[Quản lý Công nợ Đối tác]
+        MOD_REC[Engine Gợi ý Phối màu & Phụ kiện]
+        MOD_INV[Kho hàng & Nhập xuất]
+    end
+
+    subgraph AIService [AI Microservice (Port 8000)]
+        ORCHESTRATOR[FastAPI + LangChain Agent]
+        TOOL_DEBT[Debt Collection Tool]
+        TOOL_RESTOCK[Restock Advisor Tool]
+        TOOL_REC[Sanitary Combo Recommender]
+    end
+
+    subgraph DB [Database (Port 5432)]
+        POSTGRES[(PostgreSQL 15)]
+    end
+
+    Client -->|Reverse Proxy / HTTP| API_GATEWAY
+    API_GATEWAY -->|Internal RPC / REST| ORCHESTRATOR
+    API_GATEWAY -->|JPA / Hibernate / JDBC| POSTGRES
+    ORCHESTRATOR -->|Tool Calling| API_GATEWAY
+```
+
+---
+
+## 3. Cấu trúc Thư mục
 
 ```text
-[ Frontend Chat UI ]  (Vite + Vanilla HTML5/CSS3)
-       │
-       ▼  (POST /api/v1/chat, X-Store-Code: STORE-001)
-[ Spring Boot Gateway & Business Server ] (Port 8080)
-   ├── Store Security & Multi-tenancy Isolation (X-Store-Id)
-   ├── 7 Internal Business APIs (/internal/api/v1/business/*)
-   ├── Internal AI Audit API (/internal/api/v1/ai/*)
-   ├── JPA Entities: Store, Product, InventoryRecord, Order, OrderItem, Expense
-   │   └── AI Audit Entities: AiConversation, AiMessage, AiToolCall, AiToolResult (additive)
-   └── In-Memory / PostgreSQL Database (Seed Data có thể tắt ở production)
-       │
-       ▼  (POST /internal/v1/ai/chat, X-Internal-Token, X-Store-Id)
-[ FastAPI AI Service ] (Port 8000)
-   ├── Tool Registry (7 deterministic business tools)
-   ├── Agent Orchestrator (Tool Execution Loop, Anti-looping, Max Turns, Max Tool Calls)
-   ├── Context Manager & Response Validator (completed / partial / needs_clarification / failed)
-   └── LLM Provider Adapters:
-        ├── Google Gemini 1.5 Flash (google-generativeai, real Tool Calling)
-        ├── OpenAI GPT-4o-mini (AsyncOpenAI, real Tool Calling)
-        └── Deterministic MockLLM (độc lập, offline, bảo mật tuyệt đối)
+├── ai-service/             # AI Microservice (FastAPI + LangChain + Python 3.11)
+│   ├── app/
+│   │   ├── agent/          # Orchestrator & Logic Agent điều phối
+│   │   ├── tools/          # Công cụ nghiệp vụ (sanitary_recommend_tools, debt_advisor_tools)
+│   │   └── main.py         # Điểm khởi chạy FastAPI Uvicorn
+│   └── Dockerfile
+├── backend/                # Backend Core (Spring Boot 3.3.4 + Java 21)
+│   ├── src/main/java/com/retail/assistant/
+│   │   ├── controller/
+│   │   │   ├── recommend/  # RecommendationController (Gợi ý Combo Lavabo & Gạch)
+│   │   │   ├── debt/       # ContractorDebtController (Sổ nợ & AI nhắc nợ)
+│   │   │   ├── catalog/    # Quản lý Sản phẩm, Thông số kỹ thuật
+│   │   │   └── system/     # Dashboard, Kho hàng, Thu chi
+│   │   ├── domain/         # Entities JPA & Repositories
+│   └── src/main/resources/db/
+│       ├── migration_dien_nuoc.sql # Schema nâng cấp ngành điện nước
+│       └── seed_dien_nuoc_data.sql # Bộ dữ liệu mẫu thực tế
+├── frontend/               # Frontend Single Page App (React 19 + Vite + Tailwind CSS)
+│   ├── src/
+│   │   ├── features/
+│   │   │   ├── recommendations/ # Giao diện Phối màu & Gợi ý Combo TBVS
+│   │   │   ├── cashflow/        # Quản lý Dòng tiền & Sổ nợ
+│   │   │   ├── product-management/ # Quản lý Sản phẩm Điện Nước
+│   │   │   └── orders/          # Bán hàng POS
+│   │   └── components/     # UI Components, Layout, Sidebar
+│   └── nginx.conf          # Nginx reverse proxy sang Backend & AI-Service
+├── docs/                   # Tài liệu đặc tả kỹ thuật
+│   └── SRS_DIEN_NUOC_V2.md # Software Requirements Specification v2.0
+├── docker-compose.yml      # Cấu hình triển khai toàn bộ cụm dịch vụ
+└── README.md
 ```
 
-> 📚 **Tài liệu kỹ thuật AI Agent** (thư mục `docs/`):
-> [Kiến trúc](./docs/AI_AGENT_ARCHITECTURE.md) ·
-> [Audit DB](./docs/AI_AGENT_DATABASE_AUDIT.md) ·
-> [Kế hoạch](./docs/AI_AGENT_IMPLEMENTATION_PLAN.md) ·
-> [Công cụ](./docs/AI_AGENT_TOOLS.md) ·
-> [API](./docs/AI_AGENT_API.md) ·
-> [Bảo mật](./docs/AI_AGENT_SECURITY.md) ·
-> [Đánh giá](./docs/AI_AGENT_EVALUATION.md)
-
 ---
 
-## 🛠️ Danh sách 7 Công cụ Nghiệp vụ (Tool Registry)
+## 4. Hướng dẫn Khởi chạy Hệ thống
 
-| # | Tên Tool | Mục đích nghiệp vụ | API Backend tương ứng |
-|---|---|---|---|
-| 1 | `get_sales_summary` | Tổng hợp doanh thu gộp, giảm giá, hoàn trả, doanh thu thuần, số đơn hàng | `/sales-summary` |
-| 2 | `get_profit_summary` | Tính doanh thu thuần, COGS (giá vốn), lợi nhuận gộp & biên lợi nhuận % | `/profit-summary` |
-| 3 | `get_top_products` | Xếp hạng sản phẩm bán chạy theo số lượng hoặc doanh thu | `/top-products` |
-| 4 | `get_inventory_status` | Kiểm tra tồn kho, cảnh báo hàng sắp hết (`low_stock`) & hết hàng (`out_of_stock`) | `/inventory-status` |
-| 5 | `get_slow_moving_products` | Tìm sản phẩm bán chậm hoặc tồn ứ đọng nhiều ngày | `/slow-moving-products` |
-| 6 | `get_expense_summary` | Tổng hợp chi phí hoạt động theo danh mục (thuê mặt bằng, điện nước, nhân sự...) | `/expense-summary` |
-| 7 | `get_restock_suggestions` | Đề xuất số lượng nhập hàng dựa trên tốc độ bán thực tế và số ngày dự trữ | `/restock-suggestions` |
+### 4.1. Yêu cầu Môi trường
+- **Docker** & **Docker Compose** (bản 20.10+).
+- *Tùy chọn nếu chạy local không qua Docker*: Java 21 JDK, Maven 3.9+, Node.js 20+, Python 3.11+.
 
----
+### 4.2. Khởi động bằng Docker Compose (Khuyến nghị)
+Chỉ cần thực hiện lệnh sau tại thư mục gốc của dự án:
 
-## 📊 Kết quả Benchmark & Đánh giá (TC-01 đến TC-15)
-
-Đã chạy kiểm thử định lượng theo kịch bản chuẩn trong SRS mục 12:
-
-```text
-=====================================================================
-                    KẾT QUẢ ĐÁNH GIÁ CHUẨN (BENCHMARK)
-=====================================================================
-Tổng số test case:              10
-Số test case đạt yêu cầu:       10/10
-Độ chính xác Intent (Intent Acc): 100.0%
-Độ chính xác Tool (Tool Acc):     100.0%
-Độ chính xác Clarification:       100.0%
-=====================================================================
-```
-
-1. **TC-01 (Doanh thu hôm nay):** Gọi đúng `get_sales_summary` với ngày hiện tại.
-2. **TC-02 (Doanh thu tháng trước):** Trích xuất đúng mốc đầu tháng và cuối tháng trước.
-3. **TC-03 (Top sản phẩm bán chạy):** Gọi `get_top_products` với limit hợp lệ.
-4. **TC-04 (Cảnh báo hàng sắp hết):** Gọi `get_inventory_status` với `status="low_stock"`.
-5. **TC-05 (Lợi nhuận gộp):** Gọi `get_profit_summary` tính toán chính xác COGS và % biên lợi nhuận.
-6. **TC-06 (Ngữ cảnh tiếp nối):** Tự động hiểu khoảng thời gian từ lịch sử hội thoại trước đó.
-7. **TC-07 (Câu hỏi mơ hồ):** Phản hồi `needs_clarification`, yêu cầu người dùng xác định rõ thời gian.
-8. **TC-08 (Tool ngoài registry):** Từ chối gọi tool không được cấp phép.
-9. **TC-12 (Yêu cầu ghi/sửa dữ liệu):** Từ chối thực hiện thao tác sửa kho qua chat.
-10. **TC-15 (Prompt Injection):** Chặn các yêu cầu tiết lộ API key hay system prompt.
-
----
-
-## 🚀 Hướng dẫn Chạy Hệ thống
-
-### 1. Khởi động Spring Boot Backend (Port 8080)
 ```bash
-cd backend
-mvn spring-boot:run
+docker compose up -d --build
 ```
-> Khi khởi động, `DataLoader` sẽ tự động tạo dữ liệu mẫu phong phú: 2 cửa hàng, 18 mặt hàng đa dạng, 60 ngày giao dịch bán lẻ và các khoản chi phí hoạt động.
-> ⚙️ Ở môi trường production, đặt `APP_SEED_DATA_ENABLED=false` để **không** trộn dữ liệu demo vào dữ liệu thật (chỉ seed khi DB rỗng).
 
-### 2. Khởi động AI Service (Port 8000)
-```bash
-cd ai-service
-./.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-- Nếu có Google Gemini API Key: thêm vào file `ai-service/.env`:
-  ```env
-  LLM_PROVIDER=gemini
-  GEMINI_API_KEY=your_gemini_api_key_here
-  ```
-- Nếu không có API Key: AI Service tự động chạy chế độ `mock` mô phỏng suy luận và Tool Calling cục bộ, phục vụ kiểm thử và demo hoàn hảo.
-
-### 3. Khởi động Frontend (Port 5173)
-```bash
-cd frontend
-npm run dev
-```
-Truy cập: `http://localhost:5173` để trải nghiệm giao diện chat kèm **Tool Execution Inspector**.
-
-### 4. Chạy Kiểm thử Tự động (Tests & Benchmark)
-- Backend tests (JUnit 5) — **23/23 pass**:
-  ```bash
-  cd backend && mvn test
-  ```
-- AI Service unit & integration tests (pytest) — **34/34 pass**:
-  ```bash
-  cd ai-service && PYTHONPATH=. ./.venv/bin/pytest tests/
-  ```
-- AI Agent Benchmark Suite (offline, tất định):
-  ```bash
-  cd ai-service && PYTHONPATH=. ./.venv/bin/python -m app.evaluation.runner
-  ```
-
-Chi tiết phương pháp đánh giá & ground-truth: [`docs/AI_AGENT_EVALUATION.md`](./docs/AI_AGENT_EVALUATION.md).
+Docker Compose sẽ tự động biên dịch và khởi chạy 4 container:
+1. `retail-postgres`: Cơ sở dữ liệu PostgreSQL 15 (Port `5432`).
+2. `retail-backend`: Dịch vụ Core Spring Boot (Port `8080`).
+3. `retail-ai-service`: Trợ lý AI Python FastAPI (Port `8000`).
+4. `retail-frontend`: Giao diện React phục vụ qua Nginx (Port `3000` & `5173`).
 
 ---
 
-## 🔒 Điểm nổi bật về bảo mật & độ tin cậy
+## 5. Tài khoản & Địa chỉ Truy cập
 
-- **Grounded tuyệt đối:** mọi con số đều đến từ tool; tool lỗi/timeout được báo trung thực, **không** suy diễn thành 0 hay bịa kết quả.
-- **Read-only:** agent chỉ đọc/phân tích; không tool nào ghi, sửa giá, điều chỉnh kho hay đặt hàng.
-- **Store isolation:** `X-Store-Code` được resolve ở backend; AI không tự chọn cửa hàng và tool không nhận `store_id`.
-- **Guardrails:** allowlist tool, validate tham số, chống vòng lặp, giới hạn số tool call/vòng, timeout, cắt kích thước kết quả.
-- **Audit fail-safe:** lịch sử hội thoại được lưu best-effort theo store; lỗi audit không làm gián đoạn chat.
+| Dịch vụ | Địa chỉ URL | Ghi chú |
+|---|---|---|
+| **Giao diện Ứng dụng (Web App)** | [http://localhost:3000](http://localhost:3000) | Giao diện điều hành bán hàng & kho |
+| **Backend REST API** | [http://localhost:8080](http://localhost:8080) | API Core Spring Boot |
+| **AI Service API (Swagger)** | [http://localhost:8000/docs](http://localhost:8000/docs) | Tài liệu OpenAPI AI Agent |
 
-Chi tiết: [`docs/AI_AGENT_SECURITY.md`](./docs/AI_AGENT_SECURITY.md).
+### Thông tin Đăng nhập Mặc định
+- **Tài khoản**: `admin@smartinventory.vn`
+- **Mật khẩu**: `Admin@123`
+*(Hệ thống đã cấu hình phân quyền Admin toàn quyền truy cập tất cả phân hệ).*
+
+---
+
+## 6. Các Tính Năng Nổi Bật & Kịch Bản Kiểm Thử
+
+### 6.1. Gợi ý Combo Thiết bị Vệ sinh & Phối Màu Gạch Men (Recommend System)
+- **Truy cập**: Menu bên trái $\rightarrow$ **"Tư Vấn & Combo TBVS"** $\rightarrow$ **"Gợi ý Phối Màu & Combo"** (hoặc truy cập trực tiếp `/recommendations`).
+- **Nghiệp vụ**:
+  - Chọn sản phẩm chủ đạo: **Chậu Lavabo sứ đặt bàn INAX AL-299V (Trắng tuyết)**.
+  - Hệ thống tự động kích hoạt luật gợi ý:
+    - *Tư vấn phối màu gạch men*: Đề xuất gạch Calacatta White 30x60 mờ, gạch Terrazzo xám hạt mịn hoặc gạch thẻ xanh ngọc lục bảo (Emerald Green) kèm lý do thiết kế thẩm mỹ.
+    - *Gợi ý phụ kiện bắt buộc*: Vòi nóng lạnh cổ cao 30cm đen mờ (cho chậu đặt bàn), xi-phông nhấn nắp sứ trắng đồng bộ, cặp van góc inox 304, keo silicone Apolo A500 chống mốc.
+    - *Ưu đãi*: Chiết khấu ngay **5%** khi chọn mua trọn gói Combo.
+    - Bấm nút **"Áp dụng Combo vào Đơn hàng"** để chuyển dữ liệu sang hóa đơn bán hàng.
+
+### 6.2. Quản lý Công Nợ Thợ/Nhà Thầu & AI Nhắc Nợ
+- **Truy cập**: Menu **"Dòng tiền"** $\rightarrow$ **"Công nợ"** (hoặc `/cashflow/debts`).
+- **Nghiệp vụ**:
+  - Báo cáo phân loại tuổi nợ (Debt Aging): Nợ chưa đến hạn, quá hạn 8-15 ngày, quá hạn trên 30 ngày.
+  - Theo dõi công nợ theo công trình: *Biệt thự Gamuda Garden*, *Nhà phố Nam Cường*.
+  - **AI Nhắc nợ thông minh**: Tạo tin nhắn nhắc nợ tùy biến theo 3 cấp độ (Nhẹ nhàng nhắc tiến độ $\rightarrow$ Nhắc đợt quyết toán $\rightarrow$ Thông báo tạm dừng cấp hàng) để gửi Zalo cho khách hàng.
+
+### 6.3. Quản lý Kho Hàng & Quy đổi Đơn vị Tính
+- **Truy cập**: Menu **"Tồn kho"** (hoặc `/inventory`).
+- **Nghiệp vụ**:
+  - Theo dõi 19 mã sản phẩm điện nước thực tế (dây điện Cadivi, ống nhựa Tiền Phong, bồn cầu Viglacera, keo silicone Apolo...).
+  - Thiết lập định mức tồn kho tối thiểu, cảnh báo thiếu hàng (`isLowStock`) và đề xuất nhập hàng tự động.
+  - Hỗ trợ đơn vị quy đổi: Cuộn 100m sang mét, Cây 4m sang mét, Thùng sang m².
+
+---
+
+## 7. Tài liệu Tham khảo
+
+- [Tài liệu Đặc tả Yêu cầu Phần mềm (SRS v2.0)](docs/SRS_DIEN_NUOC_V2.md)
+- [Đặc tả Kỹ thuật & Lộ trình Triển khai (Technical Specification & Roadmap)](file:///Users/luana/.gemini/antigravity/brain/61fabcd3-31a8-4c04-a0e3-ac9d1178fc32/DIEN_NUOC_SPECIFICATION_AND_ROADMAP.md)

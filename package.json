@@ -1,0 +1,12 @@
+{
+  "name": "retail-assistant-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "npm --prefix frontend run build",
+    "dev": "npm --prefix frontend run dev",
+    "test": "npm --prefix frontend run test",
+    "docker:build": "docker compose build",
+    "docker:up": "docker compose up -d"
+  }
+}

@@ -814,3 +814,197 @@ INSERT INTO cash_funds (code, name, fund_type, is_default) VALUES
 -- HOÀN TẤT
 -- ============================================================
 SELECT 'Database optimization completed successfully!' AS status;
+-- 1. ROLES
+INSERT INTO roles (id, name, description, permission) VALUES
+(1, 'ADMIN', 'Quản trị viên toàn quyền hệ thống', '{"all": true}'::jsonb),
+(2, 'STAFF', 'Nhân viên bán hàng và thu ngân', '{"product": ["read"], "order": ["read","create"], "pet": ["read"], "service": ["read"]}'::jsonb),
+(3, 'OWNER', 'Chủ cửa hàng kinh doanh', '{"all": true}'::jsonb)
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description;
+
+-- 2. USERS (Status in UPPERCASE: 'ACTIVE')
+INSERT INTO users (id, username, password_hash, full_name, email, phone, role_id, status, staff_code, created_at, updated_at) VALUES
+(1, 'admin', '$2a$10$ID/8bh4S610dSC/a8Vy/X.vsA5WbJcNnnxcExEkAy5WTUbMv3874q', 'System Administrator', 'admin@smartinventory.vn', '0901234567', 1, 'ACTIVE', 'ADMIN01', NOW(), NOW()),
+(2, 'owner1', '$2a$10$ID/8bh4S610dSC/a8Vy/X.vsA5WbJcNnnxcExEkAy5WTUbMv3874q', 'Nguyễn Văn Minh', 'minh.nguyen@taphoaminhthanh.vn', '0901234500', 3, 'ACTIVE', 'NV-OWNER', NOW(), NOW()),
+(3, 'staff1', '$2a$10$ID/8bh4S610dSC/a8Vy/X.vsA5WbJcNnnxcExEkAy5WTUbMv3874q', 'Trần Thị Lan', 'lan.tran@taphoaminhthanh.vn', '0912345001', 2, 'ACTIVE', 'NV001', NOW(), NOW()),
+(4, 'staff2', '$2a$10$ID/8bh4S610dSC/a8Vy/X.vsA5WbJcNnnxcExEkAy5WTUbMv3874q', 'Lê Văn Hùng', 'hung.le@taphoaminhthanh.vn', '0923456002', 2, 'ACTIVE', 'NV002', NOW(), NOW())
+ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name, role_id = EXCLUDED.role_id, status = EXCLUDED.status;
+
+-- 3. STORE PROFILE
+INSERT INTO store_profile (id, owner_id, name, address, phone, email, tax_code, website, currency, timezone, created_at, updated_at) VALUES
+(1, 1, 'Pet & Retail Assistant Store', '123 Cầu Giấy, Hà Nội', '0901234567', 'admin@smartinventory.vn', '0102030405', 'https://smartinventory.vn', 'VND', 'Asia/Ho_Chi_Minh', NOW(), NOW())
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, address = EXCLUDED.address;
+
+-- 4. LOCATIONS
+INSERT INTO locations (id, location_code, name, address, type) VALUES
+(1, 'WH001', 'Kho tổng Hà Nội', '123 Cầu Giấy, Hà Nội', 'WAREHOUSE'),
+(2, 'ST001', 'Cửa hàng PetHouse', '45 Hai Bà Trưng, Hà Nội', 'STORE')
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
+
+-- 5. CASH FUNDS
+INSERT INTO cash_funds (id, code, name, fund_type, is_default) VALUES
+(1, 'CASH001', 'Quỹ tiền mặt quầy thu ngân', 'CASH', TRUE),
+(2, 'BANK001', 'Tài khoản Vietcombank', 'BANK', FALSE)
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
+
+-- 6. CATEGORIES
+INSERT INTO categories (id, category_code, name, sort_order, status, created_at, updated_at) VALUES
+(1, 'CAT-FOOD', 'Thức ăn cho thú cưng', 1, 'ACTIVE', NOW(), NOW()),
+(2, 'CAT-SNACK', 'Snack & Bánh thưởng', 2, 'ACTIVE', NOW(), NOW()),
+(3, 'CAT-ACC', 'Phụ kiện & Đồ chơi', 3, 'ACTIVE', NOW(), NOW()),
+(4, 'CAT-HYG', 'Vệ sinh & Chăm sóc', 4, 'ACTIVE', NOW(), NOW()),
+(5, 'CAT-MED', 'Thuốc & Thực phẩm bổ sung', 5, 'ACTIVE', NOW(), NOW())
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
+
+-- 7. SUPPLIERS
+INSERT INTO suppliers (id, supplier_code, name, contact_person, phone, email, addr, tax_code, status, created_at, updated_at) VALUES
+(1, 'NCC001', 'Công ty TNHH Phân Phối Thú Cưng Royal', 'Nguyễn Văn Long', '0988123456', 'contact@royalcanin.vn', 'KCN Tân Bình, TP.HCM', '0312456789', 'ACTIVE', NOW(), NOW()),
+(2, 'NCC002', 'Đại lý Dinh Dưỡng Thú Cưng SmartPet', 'Trần Thu Thảo', '0977234567', 'sales@smartpet.vn', 'KCN Thạch Thất, Hà Nội', '0103567890', 'ACTIVE', NOW(), NOW()),
+(3, 'NCC003', 'Phụ Kiện Thú Cưng Cầu Giấy', 'Lê Đình Bảo', '0966345678', 'bao.le@petaccessories.com', '12 Hoàng Quốc Việt, Hà Nội', '0104678901', 'ACTIVE', NOW(), NOW())
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
+
+-- 8. CUSTOMERS
+INSERT INTO customers (id, customer_code, name, phone, email, addr, loyalty_points, total_spent, status, created_at, updated_at) VALUES
+(1, 'KH001', 'Khách lẻ vãng lai', '0000000000', 'walkin@retail.com', 'Tại quầy', 0, 0, 'ACTIVE', NOW(), NOW()),
+(2, 'KH002', 'Hoàng Văn Nam', '0912345678', 'nam.hoang@gmail.com', 'Số 15 Lê Văn Lương, Cầu Giấy, Hà Nội', 150, 3200000, 'ACTIVE', NOW(), NOW()),
+(3, 'KH003', 'Trần Thị Lan', '0987654321', 'lan.tran@outlook.com', 'Số 88 Trần Duy Hưng, Hà Nội', 220, 5400000, 'ACTIVE', NOW(), NOW()),
+(4, 'KH004', 'Phạm Quốc Bảo', '0903456789', 'bao.pham@gmail.com', 'Toà nhà Keangnam, Mễ Trì, Hà Nội', 85, 1750000, 'ACTIVE', NOW(), NOW()),
+(5, 'KH005', 'Ngô Thu Hương', '0934567890', 'huong.ngo@yahoo.com', 'Số 5 Liễu Giai, Ba Đình, Hà Nội', 340, 7800000, 'ACTIVE', NOW(), NOW())
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
+
+-- 9. PRODUCTS
+INSERT INTO products (id, category_id, sku_code, barcode, name, image_url, description, weight, status, pet_type, product_type, created_at, updated_at) VALUES
+(1, 1, 'FOOD-RC-MINI', '893000000001', 'Thức ăn hạt Royal Canin Mini Adult (Cho chó nhỏ 2kg)', 'https://images.unsplash.com/photo-1589924691995-400dc9ecc119?w=300', 'Thức ăn cao cấp dành cho chó trưởng thành giống nhỏ', 2.0, 'ACTIVE', 'DOG', 'GOODS', NOW(), NOW()),
+(2, 1, 'FOOD-RC-KITTEN', '893000000002', 'Thức ăn hạt Royal Canin Kitten (Cho mèo con 2kg)', 'https://images.unsplash.com/photo-1589924691995-400dc9ecc119?w=300', 'Dinh dưỡng cân bằng cho mèo con từ 4 đến 12 tháng', 2.0, 'ACTIVE', 'CAT', 'GOODS', NOW(), NOW()),
+(3, 1, 'FOOD-WHISKAS', '893000000003', 'Pate Whiskas Vị Cá Thu & Cá Hồi 85g', 'https://images.unsplash.com/photo-1589924691995-400dc9ecc119?w=300', 'Pate thơm ngon giàu Omega 3-6 cho mèo', 0.085, 'ACTIVE', 'CAT', 'GOODS', NOW(), NOW()),
+(4, 2, 'SNACK-BOWWOW', '893000000004', 'Bánh thưởng Bowwow Thanh Thịt Bò 150g', 'https://images.unsplash.com/photo-1589924691995-400dc9ecc119?w=300', 'Snack nhai sạch răng cho chó', 0.15, 'ACTIVE', 'DOG', 'GOODS', NOW(), NOW()),
+(5, 3, 'ACC-LEASH-HARNESS', '893000000005', 'Dây dắt kèm yếm trợ lực phản quang cho cún', 'https://images.unsplash.com/photo-1589924691995-400dc9ecc119?w=300', 'Chất liệu vải dù cao cấp, chắc chắn, êm ái', 0.3, 'ACTIVE', 'DOG', 'GOODS', NOW(), NOW()),
+(6, 4, 'HYG-CAT-LITTER', '893000000006', 'Cát vệ sinh đậu nành Cature Tofu 6L (Hương Than)', 'https://images.unsplash.com/photo-1589924691995-400dc9ecc119?w=300', 'Cát hữu cơ tan trong nước xả bồn cầu, khử mùi đỉnh', 2.5, 'ACTIVE', 'CAT', 'GOODS', NOW(), NOW()),
+(7, 4, 'HYG-SHAMPOO-PET', '893000000007', 'Sữa tắm thảo dược dưỡng lông SOS 530ml', 'https://images.unsplash.com/photo-1589924691995-400dc9ecc119?w=300', 'Dưỡng lông mềm mượt khử mùi hôi cơ thể', 0.6, 'ACTIVE', 'ALL', 'GOODS', NOW(), NOW()),
+(8, 2, 'SNACK-CIAO-CHURU', '893000000008', 'Súp thưởng Ciao Churu vị ức gà & phô mai (Gói 4 thanh)', 'https://images.unsplash.com/photo-1589924691995-400dc9ecc119?w=300', 'Món khoái khẩu bổ sung nước cho mọi giống mèo', 0.06, 'ACTIVE', 'CAT', 'GOODS', NOW(), NOW())
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
+
+-- 10. PRODUCT UNITS
+INSERT INTO product_units (id, product_id, unit_name, conversion_rate, is_base_unit) VALUES
+(1, 1, 'Bao 2kg', 1.0, TRUE),
+(2, 2, 'Bao 2kg', 1.0, TRUE),
+(3, 3, 'Gói 85g', 1.0, TRUE),
+(4, 4, 'Gói', 1.0, TRUE),
+(5, 5, 'Bộ', 1.0, TRUE),
+(6, 6, 'Túi 6L', 1.0, TRUE),
+(7, 7, 'Chai 530ml', 1.0, TRUE),
+(8, 8, 'Gói 4 thanh', 1.0, TRUE)
+ON CONFLICT (id) DO UPDATE SET unit_name = EXCLUDED.unit_name;
+
+-- 11. PRODUCT PRICE HISTORY
+INSERT INTO product_price_history (id, product_id, cost_price, sale_price, effective_date, created_at) VALUES
+(1, 1, 280000, 360000, CURRENT_DATE, NOW()),
+(2, 2, 290000, 375000, CURRENT_DATE, NOW()),
+(3, 3, 14000, 22000, CURRENT_DATE, NOW()),
+(4, 4, 45000, 70000, CURRENT_DATE, NOW()),
+(5, 5, 80000, 135000, CURRENT_DATE, NOW()),
+(6, 6, 95000, 145000, CURRENT_DATE, NOW()),
+(7, 7, 75000, 120000, CURRENT_DATE, NOW()),
+(8, 8, 22000, 35000, CURRENT_DATE, NOW())
+ON CONFLICT (id) DO UPDATE SET sale_price = EXCLUDED.sale_price;
+
+-- 12. INVENTORY STOCK
+INSERT INTO inventory (id, product_id, location_id, batch_number, expiry_date, quantity, min_quantity, updated_at) VALUES
+(1, 1, 1, 'LOT-RC-2601', CURRENT_DATE + INTERVAL '180 days', 45, 10, NOW()),
+(2, 2, 1, 'LOT-RC-2602', CURRENT_DATE + INTERVAL '180 days', 38, 10, NOW()),
+(3, 3, 1, 'LOT-WK-2603', CURRENT_DATE + INTERVAL '240 days', 180, 30, NOW()),
+(4, 4, 1, 'LOT-BW-2604', CURRENT_DATE + INTERVAL '150 days', 65, 15, NOW()),
+(5, 5, 1, 'LOT-AC-2605', CURRENT_DATE + INTERVAL '720 days', 28, 5, NOW()),
+(6, 6, 1, 'LOT-CT-2606', CURRENT_DATE + INTERVAL '360 days', 92, 20, NOW()),
+(7, 7, 1, 'LOT-SOS-2607', CURRENT_DATE + INTERVAL '360 days', 40, 10, NOW()),
+(8, 8, 1, 'LOT-CC-2608', CURRENT_DATE + INTERVAL '120 days', 110, 25, NOW())
+ON CONFLICT (id) DO UPDATE SET quantity = EXCLUDED.quantity;
+
+-- 13. STOCK RECEIPTS
+INSERT INTO stock_receipts (id, receipt_code, supplier_id, staff_id, receipt_date, status, invoice_number, total_amount, notes, approved_by, approved_at, created_at, updated_at) VALUES
+(1, 'NK-2026-001', 1, 1, CURRENT_DATE - INTERVAL '10 days', 'APPROVED', 'HD-RC-8812', 15800000, 'Nhập lô hạt Royal Canin đợt đầu tháng', 1, NOW() - INTERVAL '10 days', NOW() - INTERVAL '10 days', NOW() - INTERVAL '10 days'),
+(2, 'NK-2026-002', 2, 1, CURRENT_DATE - INTERVAL '5 days', 'APPROVED', 'HD-SP-9931', 8900000, 'Nhập snack Bowwow và Cát đậu nành', 1, NOW() - INTERVAL '5 days', NOW() - INTERVAL '5 days', NOW() - INTERVAL '5 days'),
+(3, 'NK-2026-003', 3, 1, CURRENT_DATE - INTERVAL '1 days', 'PENDING', 'HD-PK-1120', 4500000, 'Đơn nhập dây yếm dắt phản quang', NULL, NULL, NOW() - INTERVAL '1 days', NOW() - INTERVAL '1 days')
+ON CONFLICT (id) DO UPDATE SET total_amount = EXCLUDED.total_amount;
+
+-- 14. SALE ORDERS
+INSERT INTO sale_orders (id, order_code, customer_id, user_id, total_amount, discount_amount, final_amount, paid_amount, status, shipping_address, notes, created_at, updated_at) VALUES
+(1, 'DH-2026-001', 2, 1, 1145000, 45000, 1100000, 1100000, 'DELIVERED', '15 Lê Văn Lương, Cầu Giấy, Hà Nội', 'Giao giờ hành chính', NOW() - INTERVAL '4 days', NOW() - INTERVAL '4 days'),
+(2, 'DH-2026-002', 3, 1, 740000, 0, 740000, 740000, 'DELIVERED', 'Mua trực tiếp tại quầy', 'Khách thanh toán chuyển khoản', NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days'),
+(3, 'DH-2026-003', 4, 1, 520000, 20000, 500000, 500000, 'DELIVERED', 'Mua trực tiếp tại quầy', 'Tiền mặt', NOW() - INTERVAL '1 days', NOW() - INTERVAL '1 days'),
+(4, 'DH-2026-004', 5, 1, 1850000, 100000, 1750000, 1750000, 'DELIVERED', '5 Liễu Giai, Ba Đình, Hà Nội', 'Giao nhanh trước 17h', NOW() - INTERVAL '1 days', NOW() - INTERVAL '1 days')
+ON CONFLICT (id) DO UPDATE SET final_amount = EXCLUDED.final_amount;
+
+-- 15. ORDER DETAILS
+INSERT INTO order_detail (id, order_id, product_id, unit_id, quantity, price_at_time, line_total, dispatched_qty, created_at) VALUES
+(1, 1, 1, 1, 2, 350000, 700000, 2, NOW() - INTERVAL '4 days'),
+(2, 1, 6, 6, 3, 140000, 420000, 3, NOW() - INTERVAL '4 days'),
+(3, 2, 2, 2, 1, 375000, 375000, 1, NOW() - INTERVAL '2 days'),
+(4, 2, 7, 7, 1, 120000, 120000, 1, NOW() - INTERVAL '2 days'),
+(5, 2, 4, 4, 3, 70000, 210000, 3, NOW() - INTERVAL '2 days'),
+(6, 3, 6, 6, 2, 145000, 290000, 2, NOW() - INTERVAL '1 days'),
+(7, 3, 8, 8, 6, 35000, 210000, 6, NOW() - INTERVAL '1 days')
+ON CONFLICT (id) DO UPDATE SET line_total = EXCLUDED.line_total;
+
+-- 16. STOCK DISPATCHES
+INSERT INTO stock_dispatches (id, dispatch_code, order_id, user_id, location_id, dispatch_date, status, notes, created_at, updated_at) VALUES
+(1, 'XK-2026-001', 1, 1, 1, CURRENT_DATE - INTERVAL '4 days', 'DELIVERED', 'Xuất kho giao đơn hàng bán lẻ online', NOW() - INTERVAL '4 days', NOW() - INTERVAL '4 days'),
+(2, 'XK-2026-002', 2, 1, 1, CURRENT_DATE - INTERVAL '2 days', 'DELIVERED', 'Xuất kho khách mua tại quầy', NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days')
+ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status;
+
+-- 17. CASH TRANSACTIONS
+INSERT INTO cash_transactions (id, transaction_code, fund_id, direction, amount, category, description, payment_method, status, transaction_date, created_by, created_at, updated_at) VALUES
+(1, 'TX-2026-001', 1, 'IN', 1100000, 'REVENUE', 'Thu tiền bán đơn hàng DH-2026-001', 'BANK_TRANSFER', 'COMPLETED', CURRENT_DATE - INTERVAL '4 days', 1, NOW() - INTERVAL '4 days', NOW() - INTERVAL '4 days'),
+(2, 'TX-2026-002', 1, 'IN', 740000, 'REVENUE', 'Thu tiền bán đơn hàng DH-2026-002', 'CASH', 'COMPLETED', CURRENT_DATE - INTERVAL '2 days', 1, NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days'),
+(3, 'TX-2026-003', 1, 'IN', 500000, 'REVENUE', 'Thu tiền bán đơn hàng DH-2026-003', 'CASH', 'COMPLETED', CURRENT_DATE - INTERVAL '1 days', 1, NOW() - INTERVAL '1 days', NOW() - INTERVAL '1 days'),
+(4, 'TX-2026-004', 1, 'IN', 1750000, 'REVENUE', 'Thu tiền bán đơn hàng DH-2026-004', 'BANK_TRANSFER', 'COMPLETED', CURRENT_DATE - INTERVAL '1 days', 1, NOW() - INTERVAL '1 days', NOW() - INTERVAL '1 days'),
+(5, 'TX-2026-005', 2, 'OUT', 15800000, 'SUPPLIER_PAYMENT', 'Thanh toán tiền hàng phiếu NK-2026-001 cho NCC Royal', 'BANK_TRANSFER', 'COMPLETED', CURRENT_DATE - INTERVAL '10 days', 1, NOW() - INTERVAL '10 days', NOW() - INTERVAL '10 days'),
+(6, 'TX-2026-006', 1, 'OUT', 1200000, 'EXPENSE', 'Chi phí điện nước và internet cửa hàng tháng này', 'CASH', 'COMPLETED', CURRENT_DATE - INTERVAL '3 days', 1, NOW() - INTERVAL '3 days', NOW() - INTERVAL '3 days')
+ON CONFLICT (id) DO UPDATE SET amount = EXCLUDED.amount;
+
+-- 18. PETS
+INSERT INTO pets (id, customer_id, name, species, breed, gender, birth_date, weight_kg, color, allergies, health_notes, is_active, created_at, updated_at) VALUES
+(1, 2, 'Miu', 'CAT', 'Anh lông ngắn', 'FEMALE', '2022-03-15', 4.2, 'Xám tro', 'Không', 'Đã tiêm phòng dại & 4 bệnh đầy đủ', TRUE, NOW(), NOW()),
+(2, 2, 'Bông', 'DOG', 'Poodle', 'MALE', '2021-11-01', 3.8, 'Trắng', 'Dị ứng phấn hoa', 'Lông hơi xơ, cần tỉa định kỳ 4 tuần/lần', TRUE, NOW(), NOW()),
+(3, 3, 'Kiki', 'DOG', 'Corgi', 'MALE', '2023-01-10', 10.5, 'Vàng trắng', 'Không', 'Sức khỏe tốt, tính hiếu động', TRUE, NOW(), NOW()),
+(4, 4, 'Bơ', 'CAT', 'Mèo ta lai Xiêm', 'FEMALE', '2023-05-20', 3.2, 'Vàng kem', 'Không', 'Triệt sản tháng 1/2024', TRUE, NOW(), NOW())
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
+
+-- 19. SERVICES
+INSERT INTO services (id, service_code, name, category, duration_minutes, base_price, pet_type, is_active, created_at, updated_at) VALUES
+(1, 'SV-TAM-MEO', 'Tắm & sấy spa mèo', 'BATH', 45, 120000.00, 'CAT', TRUE, NOW(), NOW()),
+(2, 'SV-TAM-CHO', 'Tắm & sấy spa chó', 'BATH', 60, 150000.00, 'DOG', TRUE, NOW(), NOW()),
+(3, 'SV-CAT-TIA', 'Cắt tỉa lông tạo kiểu nghệ thuật', 'GROOMING', 90, 250000.00, 'ALL', TRUE, NOW(), NOW()),
+(4, 'SV-CAT-MONG', 'Cắt móng & vệ sinh tai chuyên sâu', 'NAIL', 20, 60000.00, 'ALL', TRUE, NOW(), NOW())
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, base_price = EXCLUDED.base_price;
+
+-- 20. SERVICE BOOKINGS
+INSERT INTO service_bookings (id, booking_code, customer_id, pet_id, staff_id, booking_date, start_time, end_time, status, total_amount, notes, created_at, updated_at) VALUES
+(1, 'BK-2026-001', 2, 1, 1, CURRENT_DATE, '09:30', '10:30', 'IN_PROGRESS', 180000.00, 'Bé hơi nhát nước, cần tắm nhẹ tay', NOW(), NOW()),
+(2, 'BK-2026-002', 3, 2, 1, CURRENT_DATE, '14:00', '15:30', 'CONFIRMED', 250000.00, 'Cắt ngắn phần chân và tỉa tròn mặt', NOW(), NOW())
+ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status;
+
+-- 21. RESET SEQUENCES
+SELECT setval('roles_id_seq', (SELECT COALESCE(MAX(id), 1) FROM roles));
+SELECT setval('users_id_seq', (SELECT COALESCE(MAX(id), 1) FROM users));
+SELECT setval('store_profile_id_seq', (SELECT COALESCE(MAX(id), 1) FROM store_profile));
+SELECT setval('locations_id_seq', (SELECT COALESCE(MAX(id), 1) FROM locations));
+SELECT setval('cash_funds_id_seq', (SELECT COALESCE(MAX(id), 1) FROM cash_funds));
+SELECT setval('customers_id_seq', (SELECT COALESCE(MAX(id), 1) FROM customers));
+SELECT setval('suppliers_id_seq', (SELECT COALESCE(MAX(id), 1) FROM suppliers));
+SELECT setval('products_id_seq', (SELECT COALESCE(MAX(id), 1) FROM products));
+SELECT setval('categories_id_seq', (SELECT COALESCE(MAX(id), 1) FROM categories));
+SELECT setval('inventory_id_seq', (SELECT COALESCE(MAX(id), 1) FROM inventory));
+SELECT setval('product_price_history_id_seq', (SELECT COALESCE(MAX(id), 1) FROM product_price_history));
+SELECT setval('stock_receipts_id_seq', (SELECT COALESCE(MAX(id), 1) FROM stock_receipts));
+SELECT setval('stock_dispatches_id_seq', (SELECT COALESCE(MAX(id), 1) FROM stock_dispatches));
+SELECT setval('sale_orders_id_seq', (SELECT COALESCE(MAX(id), 1) FROM sale_orders));
+SELECT setval('order_detail_id_seq', (SELECT COALESCE(MAX(id), 1) FROM order_detail));
+SELECT setval('cash_transactions_id_seq', (SELECT COALESCE(MAX(id), 1) FROM cash_transactions));
+SELECT setval('pets_id_seq', (SELECT COALESCE(MAX(id), 1) FROM pets));
+SELECT setval('services_id_seq', (SELECT COALESCE(MAX(id), 1) FROM services));
+SELECT setval('service_bookings_id_seq', (SELECT COALESCE(MAX(id), 1) FROM service_bookings));
+INSERT INTO service_bookings (id, booking_code, customer_id, pet_id, staff_id, scheduled_at, status, total_amount, notes, created_at, updated_at) VALUES
+(1, 'BK-2026-001', 2, 1, 1, NOW() + INTERVAL '1 hour', 'CONFIRMED', 180000.00, 'Bé hơi nhát nước, cần tắm nhẹ tay', NOW(), NOW()),
+(2, 'BK-2026-002', 3, 2, 1, NOW() + INTERVAL '3 hours', 'CONFIRMED', 250000.00, 'Cắt ngắn phần chân và tỉa tròn mặt', NOW(), NOW())
+ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status;
+SELECT setval('service_bookings_id_seq', 2);

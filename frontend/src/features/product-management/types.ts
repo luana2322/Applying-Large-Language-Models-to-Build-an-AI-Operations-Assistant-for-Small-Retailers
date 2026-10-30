@@ -1,0 +1,84 @@
+// ==========================================
+// Product Management Feature Types
+// ==========================================
+
+// --- Categories (Task009) ---
+
+/** Ancestors từ `GET /api/v1/categories/{id}` (Task031). */
+export type CategoryBreadcrumbItem = {
+  id: number;
+  name: string;
+  categoryCode: string;
+};
+
+export interface Category {
+  id: number;
+  categoryCode: string; // CAT001
+  name: string;
+  description?: string;
+  parentId?: number;
+  parentName?: string;
+  sortOrder: number;
+  status: "Active" | "Inactive";
+  createdAt: string;
+  updatedAt: string;
+  children?: Category[];
+  productCount?: number;
+  /** Chỉ điền khi có response chi tiết Task031. */
+  breadcrumb?: CategoryBreadcrumbItem[];
+}
+
+// --- Products (Task010) ---
+
+export interface Product {
+  id: number;
+  categoryId?: number;
+  categoryName?: string;
+  skuCode: string;
+  barcode?: string;
+  name: string;
+  imageUrl?: string;
+  description?: string;
+  weight?: number;
+  status: "Active" | "Inactive";
+  currentStock?: number;
+  currentPrice?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// --- Suppliers (Task011) ---
+
+export interface Supplier {
+  id: number;
+  supplierCode: string; // NCC0001
+  name: string;
+  contactPerson?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  taxCode?: string;
+  status: "Active" | "Inactive";
+  createdAt: string;
+  updatedAt: string;
+  receiptCount?: number;
+  /** Task044 / `POST` tạo — chi tiết server. */
+  lastReceiptAt?: string;
+}
+
+// --- Customers (Task012) ---
+
+export interface Customer {
+  id: number;
+  customerCode: string; // KH00001
+  name: string;
+  phone: string;
+  email?: string;
+  address?: string;
+  loyaltyPoints: number;
+  status: "Active" | "Inactive";
+  createdAt: string;
+  updatedAt: string;
+  totalSpent?: number;
+  orderCount?: number;
+}

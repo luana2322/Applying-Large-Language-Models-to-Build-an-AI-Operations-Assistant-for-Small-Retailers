@@ -34,6 +34,12 @@ public class Product {
     @Column(precision = 10, scale = 4)
     private BigDecimal weight = BigDecimal.ZERO;
 
+    @Column(name = "pet_type", length = 20)
+    private String petType;
+
+    @Column(name = "product_type", length = 30)
+    private String productType;
+
     @Column(nullable = false, length = 20)
     private String status = "ACTIVE";
 
@@ -106,6 +112,10 @@ public class Product {
     public void setDescription(String description) { this.description = description; }
     public BigDecimal getWeight() { return weight; }
     public void setWeight(BigDecimal weight) { this.weight = weight; }
+    public String getPetType() { return petType; }
+    public void setPetType(String petType) { this.petType = petType; }
+    public String getProductType() { return productType; }
+    public void setProductType(String productType) { this.productType = productType; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public LocalDateTime getCreatedAt() { return createdAt; }

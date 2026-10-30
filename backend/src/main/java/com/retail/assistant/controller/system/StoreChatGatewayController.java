@@ -16,7 +16,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1")
-@CrossOrigin(origins = "*")
 public class StoreChatGatewayController {
 
     private static final Logger logger = LoggerFactory.getLogger(StoreChatGatewayController.class);
@@ -54,7 +53,7 @@ public class StoreChatGatewayController {
         ));
     }
 
-    @PostMapping("/chat")
+    @PostMapping({"/chat", "/ai/chat/stream"})
     public ResponseEntity<?> chatWithAi(
         @RequestHeader(value = "X-Store-Code", defaultValue = "STORE-001") String storeCode,
         @RequestBody Map<String, Object> clientRequest

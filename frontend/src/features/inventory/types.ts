@@ -1,0 +1,243 @@
+// ==========================================
+// Inventory Feature Types
+// ==========================================
+
+// --- Inventory Stock (Task004) ---
+
+export interface InventoryItem {
+  id: number;
+  productId: number;
+  productName: string;
+  skuCode: string;
+  /** Task005 BE — tùy chọn */
+  barcode?: string;
+  unitId?: number;
+  locationId: number;
+  warehouseCode: string;
+  shelfCode: string;
+  batchNumber?: string;
+  expiryDate?: string; // ISO date string
+  quantity: number;
+  minQuantity: number;
+  unitName: string;
+  costPrice: number;
+  updatedAt: string;
+  // Computed
+  isLowStock: boolean;
+  isExpiringSoon: boolean;
+  totalValue: number; // quantity * costPrice
+  status?: 'Draft' | 'Active';
+  // --- P3: Inventory Action Signals (SDD Task 3) ---
+  /** `quantity <= minQuantity` (kể cả quantity = 0) — khác `isLowStock` (yêu cầu quantity > 0). */
+  reorderSuggested?: boolean;
+  /** Ngày xuất/cập nhật gần nhất dùng để tính stale; ISO date string. */
+  lastMovementDate?: string;
+  /** "High" khi dựa trên ngày xuất kho thật; "Low" khi fallback sang ngày cập nhật tồn. */
+  staleConfidence?: 'High' | 'Low';
+  /** Còn tồn nhưng không có biến động trong ngưỡng N ngày (xem BE `InventoryListService.STALE_DAYS`). */
+  isStale?: boolean;
+}
+
+export interface InventoryFilters {
+  search: string;
+  status: "all" | "in-stock" | "low-stock" | "out-of-stock" | "expiring-soon" | "stale-stock";
+  locationId?: number;
+  categoryId?: number;
+}
+
+export interface InventoryKPIs {
+  totalSKUs: number;
+  totalValue: number;
+  lowStockCount: number;
+  expiringSoonCount: number;
+}
+
+// --- Stock Receipts (Task005) ---
+
+export type ReceiptStatus = "Draft" | "Pending" | "Approved" | "Received" | "Done" | "Rejected";
+
+export interface ReceiptDetailItem {
+  id: number;
+  receiptId: number;
+  productId: number;
+  productName: string;
+  skuCode: string;
+  unitId: number;
+  unitName: string;
+  quantity: number;
+  costPrice: number;
+  batchNumber?: string;
+  expiryDate?: string;
+  lineTotal: number;
+}
+
+export interface StockReceipt {
+  id: number;
+  receiptCode: string; // PN-2026-0001
+  supplierId: number;
+  supplierName: string;
+  staffId: number;
+  staffName: string;
+  receiptDate: string;
+  status: ReceiptStatus;
+  invoiceNumber?: string;
+  totalAmount: number;
+  /** Task013 list — khi có thì ưu tiên hiển thị thay cho `details.length`. */
+  lineCount?: number;
+  notes?: string;
+  approvedBy?: number;
+  approvedByName?: string;
+  approvedAt?: string;
+  reviewedBy?: number;
+  reviewedByName?: string;
+  reviewedAt?: string;
+  rejectionReason?: string;
+  createdAt: string;
+  updatedAt: string;
+  details: ReceiptDetailItem[];
+}
+
+// --- Stock Dispatch (Task006) ---
+
+/** Phiếu thủ công (Tồn kho): WaitingDispatch → Delivering → Delivered. Phiếu đơn: Pending / Full / Partial / Cancelled */
+export type DispatchStatus =
+  | "Draft"
+  | "Pending"
+  | "Approved"
+  | "Preparing"
+  | "Dispatched"
+  | "WaitingDispatch"
+  | "Delivering"
+  | "Delivered"
+  | "Done"
+  | "Full"
+  | "Partial"
+  | "Cancelled";
+
+export interface DispatchItem {
+  id: number;
+  dispatchId: number;
+  orderDetailId: number;
+  productId: number;
+  productName: string;
+  skuCode: string;
+  unitId: number;
+  unitName: string;
+  orderedQty: number;
+  alreadyDispatchedQty: number;
+  remainingQty: number;
+  dispatchQty: number;
+  warehouseLocation: string;
+  shelfCode: string;
+  batchNumber?: string;
+  availableStock: number;
+  isFullyDispatched: boolean;
+}
+
+export interface StockDispatch {
+  id: number;
+  dispatchCode: string; // PX-2026-0001
+  orderId: number;
+  orderCode: string;
+  customerName: string;
+  userId: number;
+  userName: string;
+  dispatchDate: string;
+  status: DispatchStatus;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  items: DispatchItem[];
+  /** Khi API list chỉ trả số dòng xuất (không embed `items`). */
+  lineCount?: number;
+  /** Từ API list — BE authoritative */
+  canEdit?: boolean;
+  canDelete?: boolean;
+  manualDispatch?: boolean;
+  shortageWarning?: boolean;
+}
+
+// --- Inventory Audit (Task007) ---
+
+export type AuditStatus =
+  | "Pending"
+  | "In Progress"
+  | "Pending Owner Approval"
+  | "Completed"
+  | "Cancelled"
+  | "Re-check";
+
+export interface AuditItem {
+  id: number;
+  auditSessionId: number;
+  productId: number;
+  productName: string;
+  skuCode: string;
+  unitName: string;
+  locationId: number;
+  warehouseCode: string;
+  shelfCode: string;
+  batchNumber?: string;
+  systemQuantity: number;
+  actualQuantity?: number;
+  variance: number;
+  variancePercent: number;
+  isCounted: boolean;
+  notes?: string;
+}
+
+export interface AuditSession {
+  id: number;
+  auditCode: string; // KK-2026-0001
+  title: string;
+  auditDate: string;
+  status: AuditStatus;
+  locationFilter?: string;
+  categoryFilter?: string;
+  notes?: string;
+  createdBy: number;
+  createdByName: string;
+  completedAt?: string;
+  completedByName?: string;
+  createdAt: string;
+  updatedAt: string;
+  items: AuditItem[];
+  /** Task021 list API — khi có thì bảng dùng thay vì đếm từ `items`. */
+  totalLines?: number;
+  countedLines?: number;
+  varianceLines?: number;
+}
+
+export interface AdjustmentRecord {
+  id: number;
+  auditItemId: number;
+  productId: number;
+  adjustmentQty: number;
+  reason: string;
+  approvedBy?: number;
+  approvedAt?: string;
+  createdAt: string;
+}
+
+export interface AuditSummary {
+  totalItems: number;
+  countedItems: number;
+  uncountedItems: number;
+  varianceItems: number;
+  totalVarianceValue: number;
+}
+
+/** Phiếu đã ở trạng thái khoá — không cho sửa, xoá, hay chuyển bước. */
+export function isLockedReceiptStatus(s: ReceiptStatus): boolean {
+  return s === "Done" || s === "Rejected";
+}
+
+/** Phiếu đã ở trạng thái khoá — không cho sửa, xoá, hay chuyển bước. */
+export function isLockedDispatchStatus(s: DispatchStatus): boolean {
+  return s === "Done" || s === "Full" || s === "Cancelled";
+}
+
+/** Phiếu xuất manual (xuất tay, không gắn đơn) — dùng cho guard + UI stepper. */
+export function isManualDispatch(d: { manualDispatch?: boolean } | null | undefined): boolean {
+  return Boolean(d?.manualDispatch);
+}

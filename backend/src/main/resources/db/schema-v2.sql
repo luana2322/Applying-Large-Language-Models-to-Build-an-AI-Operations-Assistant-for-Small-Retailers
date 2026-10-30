@@ -11,6 +11,14 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm"; -- Cho tìm kiếm text nhanh
 -- ============================================================
 -- PHẦN A: XÓA CÁC BẢNG CŨ (nếu chạy lại từ đầu)
 -- ============================================================
+DROP TABLE IF EXISTS service_payments CASCADE;
+DROP TABLE IF EXISTS service_booking_items CASCADE;
+DROP TABLE IF EXISTS service_bookings CASCADE;
+DROP TABLE IF EXISTS services CASCADE;
+DROP TABLE IF EXISTS ai_tool_results CASCADE;
+DROP TABLE IF EXISTS ai_tool_calls CASCADE;
+DROP TABLE IF EXISTS ai_messages CASCADE;
+DROP TABLE IF EXISTS ai_conversations CASCADE;
 DROP TABLE IF EXISTS audit_logs CASCADE;
 DROP TABLE IF EXISTS order_payments CASCADE;
 DROP TABLE IF EXISTS locations CASCADE;
@@ -25,10 +33,12 @@ DROP TABLE IF EXISTS vouchers_redemptions CASCADE;
 DROP TABLE IF EXISTS vouchers CASCADE;
 DROP TABLE IF EXISTS order_detail CASCADE;
 DROP TABLE IF EXISTS sale_orders CASCADE;
+DROP TABLE IF EXISTS pets CASCADE;
 DROP TABLE IF EXISTS customers CASCADE;
 DROP TABLE IF EXISTS stock_receipt_detail CASCADE;
 DROP TABLE IF EXISTS stock_receipts CASCADE;
 DROP TABLE IF EXISTS suppliers CASCADE;
+DROP TABLE IF EXISTS product_attributes CASCADE;
 DROP TABLE IF EXISTS product_price_history CASCADE;
 DROP TABLE IF EXISTS product_images CASCADE;
 DROP TABLE IF EXISTS product_units CASCADE;
@@ -90,7 +100,7 @@ CREATE TABLE store_profile (
     id                  SERIAL PRIMARY KEY,
     owner_id            INT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     name                VARCHAR(255) NOT NULL,
-    business_category   VARCHAR(255),
+    business_category   VARCHAR(255) DEFAULT 'PET_STORE',
     address             TEXT,
     phone               VARCHAR(30),
     email               VARCHAR(255),
@@ -99,6 +109,7 @@ CREATE TABLE store_profile (
     logo_url            VARCHAR(500),
     currency            VARCHAR(10) DEFAULT 'VND',
     timezone            VARCHAR(50) DEFAULT 'Asia/Ho_Chi_Minh',
+    opening_hours       JSONB DEFAULT '{}'::jsonb,
     created_at          TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMP NOT NULL DEFAULT NOW()
 );
@@ -234,7 +245,9 @@ CREATE TABLE products (
     name            VARCHAR(255) NOT NULL,
     image_url       VARCHAR(500),
     description     TEXT,
-    weight          DECIMAL(10,4) DEFAULT 0,  -- Tăng độ chính xác
+    weight          DECIMAL(10,4) DEFAULT 0,
+    pet_type        VARCHAR(20) CHECK (pet_type IN ('DOG','CAT','SMALL_PET','BIRD','FISH','ALL','OTHER')),
+    product_type    VARCHAR(30) CHECK (product_type IN ('FOOD_DRY','FOOD_WET','SNACK','SUPPLEMENT','ACCESSORY','HYGIENE','TOY','OTHER')),
     status          VARCHAR(20) NOT NULL DEFAULT 'ACTIVE'
                     CHECK (status IN ('ACTIVE','INACTIVE','DISCONTINUED')),
     created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -245,7 +258,23 @@ CREATE TABLE products (
 CREATE INDEX idx_products_category ON products(category_id);
 CREATE INDEX idx_products_sku ON products(sku_code);
 CREATE INDEX idx_products_barcode ON products(barcode);
+CREATE INDEX idx_products_pet_type ON products(pet_type);
+CREATE INDEX idx_products_product_type ON products(product_type);
 CREATE INDEX idx_products_name_trgm ON products USING GIN (name gin_trgm_ops);
+
+-- 11b. Bảng product_attributes
+CREATE TABLE product_attributes (
+    id              SERIAL PRIMARY KEY,
+    product_id      INT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    attribute_code  VARCHAR(50) NOT NULL,
+    attribute_value VARCHAR(255) NOT NULL,
+    source          VARCHAR(50) DEFAULT 'MANUFACTURER_LABEL'
+                    CHECK (source IN ('MANUFACTURER_LABEL','DISTRIBUTOR_DOC','MANUAL')),
+    created_at      TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_product_attr_product ON product_attributes(product_id);
+CREATE INDEX idx_product_attr_code ON product_attributes(attribute_code);
 
 -- 12. Bảng product_units
 CREATE TABLE product_units (
@@ -476,16 +505,41 @@ CREATE INDEX idx_customers_phone ON customers(phone);
 CREATE INDEX idx_customers_code ON customers(customer_code);
 CREATE INDEX idx_customers_name_trgm ON customers USING GIN (name gin_trgm_ops);
 
+-- 23b. Bảng pets (Hồ sơ Thú cưng)
+CREATE TABLE pets (
+    id              SERIAL PRIMARY KEY,
+    customer_id     INT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    name            VARCHAR(100) NOT NULL,
+    species         VARCHAR(20) NOT NULL
+                    CHECK (species IN ('DOG','CAT','SMALL_PET','BIRD','FISH','OTHER')),
+    breed           VARCHAR(100),
+    gender          VARCHAR(10) CHECK (gender IN ('MALE','FEMALE','UNKNOWN')),
+    birth_date      DATE,
+    weight_kg       DECIMAL(6,2),
+    color           VARCHAR(50),
+    allergies       TEXT,
+    health_notes    TEXT,
+    photo_url       VARCHAR(500),
+    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+    deleted_at      TIMESTAMP
+);
+
+CREATE INDEX idx_pets_customer ON pets(customer_id);
+CREATE INDEX idx_pets_species ON pets(species);
+
 -- 24. Bảng sale_orders
 CREATE TABLE sale_orders (
     id                  SERIAL PRIMARY KEY,
     order_code          VARCHAR(50) NOT NULL UNIQUE,
     customer_id         INT REFERENCES customers(id) ON DELETE SET NULL,
+    pet_id              INT REFERENCES pets(id) ON DELETE SET NULL,
     user_id             INT REFERENCES users(id) ON DELETE SET NULL,
     total_amount        DECIMAL(15,2) NOT NULL DEFAULT 0,
     discount_amount     DECIMAL(15,2) NOT NULL DEFAULT 0,
     final_amount        DECIMAL(15,2) NOT NULL DEFAULT 0,
-    paid_amount         DECIMAL(15,2) NOT NULL DEFAULT 0,  -- Bổ sung
+    paid_amount         DECIMAL(15,2) NOT NULL DEFAULT 0,
     status              VARCHAR(20) NOT NULL DEFAULT 'DRAFT'
                         CHECK (status IN ('DRAFT','PENDING','CONFIRMED','SHIPPED','DELIVERED','CANCELLED','RETURNED')),
     parent_order_id     INT REFERENCES sale_orders(id) ON DELETE SET NULL,
@@ -498,6 +552,7 @@ CREATE TABLE sale_orders (
 );
 
 CREATE INDEX idx_sale_orders_customer ON sale_orders(customer_id);
+CREATE INDEX idx_sale_orders_pet ON sale_orders(pet_id);
 CREATE INDEX idx_sale_orders_user ON sale_orders(user_id);
 CREATE INDEX idx_sale_orders_status ON sale_orders(status);
 CREATE INDEX idx_sale_orders_created ON sale_orders(created_at DESC);
@@ -534,6 +589,8 @@ CREATE TABLE vouchers (
     discount_value  NUMERIC(15,2) NOT NULL CHECK (discount_value >= 0),
     max_discount    NUMERIC(15,2),
     min_order_value NUMERIC(15,2) DEFAULT 0,
+    applies_to      VARCHAR(20) NOT NULL DEFAULT 'ALL'
+                    CHECK (applies_to IN ('PRODUCT','SERVICE','ALL')),
     is_active       BOOLEAN NOT NULL DEFAULT TRUE,
     valid_from      DATE NOT NULL,
     valid_to        DATE NOT NULL,
@@ -665,6 +722,142 @@ CREATE TABLE audit_logs (
 CREATE INDEX idx_audit_logs_table ON audit_logs(table_name, record_id);
 CREATE INDEX idx_audit_logs_user ON audit_logs(changed_by);
 CREATE INDEX idx_audit_logs_time ON audit_logs(changed_at DESC);
+
+-- ============================================================
+-- PHẦN I: AI OPERATIONS ASSISTANT MODULE (LLM & TOOLS)
+-- ============================================================
+
+-- 33. Bảng ai_conversations
+CREATE TABLE ai_conversations (
+    id              BIGSERIAL PRIMARY KEY,
+    session_id      VARCHAR(128) NOT NULL UNIQUE,
+    store_id        BIGINT NOT NULL,
+    title           VARCHAR(255),
+    created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_ai_conversations_session ON ai_conversations(session_id);
+CREATE INDEX idx_ai_conversations_store ON ai_conversations(store_id);
+
+-- 34. Bảng ai_messages
+CREATE TABLE ai_messages (
+    id              BIGSERIAL PRIMARY KEY,
+    conversation_id BIGINT NOT NULL REFERENCES ai_conversations(id) ON DELETE CASCADE,
+    role            VARCHAR(16) NOT NULL,
+    content         TEXT NOT NULL,
+    intent          VARCHAR(64),
+    status          VARCHAR(32),
+    created_at      TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_ai_messages_conversation ON ai_messages(conversation_id);
+
+-- 35. Bảng ai_tool_calls
+CREATE TABLE ai_tool_calls (
+    id              BIGSERIAL PRIMARY KEY,
+    message_id      BIGINT NOT NULL REFERENCES ai_messages(id) ON DELETE CASCADE,
+    tool_name       VARCHAR(100) NOT NULL,
+    arguments       TEXT,
+    status          VARCHAR(32),
+    error_message   VARCHAR(1024),
+    created_at      TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_ai_tool_calls_message ON ai_tool_calls(message_id);
+
+-- 36. Bảng ai_tool_results
+CREATE TABLE ai_tool_results (
+    id              BIGSERIAL PRIMARY KEY,
+    tool_call_id    BIGINT NOT NULL REFERENCES ai_tool_calls(id) ON DELETE CASCADE,
+    result_data     TEXT,
+    error_message   VARCHAR(1024),
+    created_at      TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_ai_tool_results_call ON ai_tool_results(tool_call_id);
+
+-- ============================================================
+-- PHẦN J: NHÓM DỊCH VỤ GROOMING / SPA (SERVICES)
+-- ============================================================
+
+-- 37. Bảng services
+CREATE TABLE services (
+    id                  SERIAL PRIMARY KEY,
+    service_code        VARCHAR(50) NOT NULL UNIQUE,
+    name                VARCHAR(255) NOT NULL,
+    category            VARCHAR(50) CHECK (category IN ('GROOMING','SPA','BATH','NAIL','EAR','DENTAL','OTHER')),
+    description         TEXT,
+    duration_minutes    INT NOT NULL DEFAULT 30,
+    base_price          DECIMAL(15,2) NOT NULL,
+    pet_type            VARCHAR(20) CHECK (pet_type IN ('DOG','CAT','ALL')),
+    is_active           BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at          TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_services_category ON services(category);
+CREATE INDEX idx_services_active ON services(is_active);
+
+-- 38. Bảng service_bookings
+CREATE TABLE service_bookings (
+    id                  SERIAL PRIMARY KEY,
+    booking_code        VARCHAR(50) NOT NULL UNIQUE,
+    customer_id         INT NOT NULL REFERENCES customers(id) ON DELETE RESTRICT,
+    pet_id              INT NOT NULL REFERENCES pets(id) ON DELETE RESTRICT,
+    staff_id            INT REFERENCES users(id) ON DELETE SET NULL,
+    booking_date        DATE NOT NULL,
+    start_time          TIME NOT NULL,
+    end_time            TIME,
+    status              VARCHAR(20) NOT NULL DEFAULT 'PENDING'
+                        CHECK (status IN ('PENDING','CONFIRMED','IN_PROGRESS','COMPLETED','CANCELLED','NO_SHOW')),
+    total_amount        DECIMAL(15,2) NOT NULL DEFAULT 0,
+    notes               TEXT,
+    completed_at        TIMESTAMP,
+    created_at          TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_bookings_customer ON service_bookings(customer_id);
+CREATE INDEX idx_bookings_pet ON service_bookings(pet_id);
+CREATE INDEX idx_bookings_staff ON service_bookings(staff_id);
+CREATE INDEX idx_bookings_date ON service_bookings(booking_date);
+CREATE INDEX idx_bookings_status ON service_bookings(status);
+
+-- 39. Bảng service_booking_items
+CREATE TABLE service_booking_items (
+    id                  SERIAL PRIMARY KEY,
+    booking_id          INT NOT NULL REFERENCES service_bookings(id) ON DELETE CASCADE,
+    service_id          INT NOT NULL REFERENCES services(id) ON DELETE RESTRICT,
+    price_at_time       DECIMAL(15,2) NOT NULL,
+    quantity            INT NOT NULL DEFAULT 1 CHECK (quantity > 0),
+    line_total          DECIMAL(15,2) NOT NULL DEFAULT 0,
+    notes               TEXT,
+    created_at          TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_booking_items_booking ON service_booking_items(booking_id);
+CREATE INDEX idx_booking_items_service ON service_booking_items(service_id);
+
+-- 40. Bảng service_payments
+CREATE TABLE service_payments (
+    id                  SERIAL PRIMARY KEY,
+    booking_id          INT NOT NULL REFERENCES service_bookings(id) ON DELETE CASCADE,
+    payment_code        VARCHAR(50) NOT NULL UNIQUE,
+    method              VARCHAR(30) NOT NULL
+                        CHECK (method IN ('CASH','BANK_TRANSFER','CARD','E_WALLET')),
+    amount              DECIMAL(15,2) NOT NULL CHECK (amount > 0),
+    transaction_ref     VARCHAR(255),
+    status              VARCHAR(20) NOT NULL DEFAULT 'PENDING'
+                        CHECK (status IN ('PENDING','SUCCESS','FAILED','REFUNDED')),
+    paid_at             TIMESTAMP,
+    notes               TEXT,
+    created_by          INT REFERENCES users(id) ON DELETE SET NULL,
+    created_at          TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_service_payments_booking ON service_payments(booking_id);
+CREATE INDEX idx_service_payments_status ON service_payments(status);
 
 -- ============================================================
 -- PHẦN I: TRIGGERS TỰ ĐỘNG CẬP NHẬT updated_at
@@ -799,16 +992,29 @@ ORDER BY total_sold DESC;
 
 INSERT INTO roles (name, description, permission) VALUES
 ('ADMIN', 'Quản trị viên', '{"all": true}'::jsonb),
-('MANAGER', 'Quản lý', '{"product": ["read","write"], "order": ["read","write"]}'::jsonb),
-('STAFF', 'Nhân viên', '{"product": ["read"], "order": ["read","create"]}'::jsonb);
+('MANAGER', 'Quản lý', '{"product": ["read","write"], "order": ["read","write"], "pet": ["read","write"], "service": ["read","write"]}'::jsonb),
+('STAFF', 'Nhân viên', '{"product": ["read"], "order": ["read","create"], "pet": ["read"], "service": ["read"]}'::jsonb),
+('GROOMER', 'Nhân viên grooming', '{"service": ["read","write"], "pet": ["read"]}'::jsonb);
 
 INSERT INTO locations (location_code, name, address, type) VALUES
-('WH001', 'Kho chính', 'Hà Nội', 'WAREHOUSE'),
-('ST001', 'Cửa hàng 1', 'Hà Nội', 'STORE');
+('WH001', 'Kho tổng Hà Nội', '123 Cầu Giấy, Hà Nội', 'WAREHOUSE'),
+('ST001', 'Cửa hàng Thú cưng PetHouse', '45 Hai Bà Trưng, Hà Nội', 'STORE');
 
 INSERT INTO cash_funds (code, name, fund_type, is_default) VALUES
-('CASH001', 'Tiền mặt', 'CASH', TRUE),
-('BANK001', 'Ngân hàng VCB', 'BANK', FALSE);
+('CASH001', 'Quỹ tiền mặt quầy thu ngân', 'CASH', TRUE),
+('BANK001', 'Tài khoản Vietcombank', 'BANK', FALSE);
+
+INSERT INTO categories (category_code, name, sort_order, status) VALUES
+('CAT-FOOD', 'Thức ăn cho thú cưng', 1, 'ACTIVE'),
+('CAT-SNACK', 'Snack & Bánh thưởng', 2, 'ACTIVE'),
+('CAT-ACC', 'Phụ kiện & Đồ chơi', 3, 'ACTIVE'),
+('CAT-HYG', 'Vệ sinh & Chăm sóc', 4, 'ACTIVE');
+
+INSERT INTO services (service_code, name, category, duration_minutes, base_price, pet_type, is_active) VALUES
+('SV-TAM-MEO', 'Tắm & sấy mèo', 'BATH', 45, 120000.00, 'CAT', TRUE),
+('SV-TAM-CHO', 'Tắm & sấy chó', 'BATH', 60, 150000.00, 'DOG', TRUE),
+('SV-CAT-TIA', 'Cắt tỉa lông toàn thân', 'GROOMING', 90, 250000.00, 'ALL', TRUE),
+('SV-CAT-MONG', 'Cắt móng', 'NAIL', 15, 50000.00, 'ALL', TRUE);
 
 -- ============================================================
 -- HOÀN TẤT

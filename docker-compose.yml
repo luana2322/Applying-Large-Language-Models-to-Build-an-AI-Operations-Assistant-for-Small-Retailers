@@ -33,7 +33,7 @@ services:
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgrespassword
       SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
-      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_HIBERNATE_DDL_AUTO: none
       AI_SERVICE_URL: http://ai-service:8000
       INTERNAL_AUTH_TOKEN: retail-internal-secret-token-v1
     ports:
@@ -48,10 +48,22 @@ services:
     environment:
       INTERNAL_AUTH_TOKEN: retail-internal-secret-token-v1
       BUSINESS_API_BASE_URL: http://backend:8080/internal/api/v1/business
-      LLM_PROVIDER: mock # or gemini / openai
-      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      LLM_PROVIDER: mock
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     ports:
       - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: retail-frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+      - "5173:80"
 
 volumes:
   pgdata:

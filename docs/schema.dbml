@@ -1,0 +1,862 @@
+// ============================================================
+// DBML (Database Markup Language) - Pet Store ERP & AI Assistant
+// Project: Applying Large Language Models to Build an AI Operations Assistant
+//          for Small Pet Store Retailers (Cửa hàng Thú cưng)
+// Compatible with: dbdocs.io, dbdiagram.io
+// ============================================================
+
+Project pet_store_ai_operations_assistant {
+  database_type: 'PostgreSQL'
+  Note: '''
+    # Hệ thống Trợ lý Vận hành Bán lẻ Thông minh - Cửa hàng Thú cưng
+    (AI Operations Assistant for Pet Store)
+
+    Phân hệ:
+    1. Hệ thống & Phân quyền
+    2. Sản phẩm & Danh mục (thức ăn, phụ kiện, thuốc bổ)
+    3. Nhà cung cấp & Nhập hàng
+    4. Kho vận & Tồn kho (theo lô / hạn sử dụng)
+    5. Bán hàng & POS
+    6. Tài chính & Sổ quỹ
+    7. Kiểm toán Hệ thống
+    8. AI Operations Assistant (LLM & Tools)
+    9. Hồ sơ Thú cưng (Pets)
+    10. Dịch vụ Grooming / Spa (Services)
+
+    Phạm vi: 1 cửa hàng + 1 kho nhỏ, hộ kinh doanh cá thể.
+    KHÔNG bao gồm: khám bệnh, kê đơn thú y, bán thú cưng.
+  '''
+}
+
+// ============================================================
+// 1. NHÓM HỆ THỐNG & NGƯỜI DÙNG (SYSTEM & USERS)
+// ============================================================
+
+Table roles {
+  id integer [primary key, increment]
+  name varchar(50) [not null, unique]
+  description varchar(255)
+  permission jsonb [not null, default: '{}']
+  is_system boolean [default: false]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  Note: 'Bảng vai trò và quyền hạn RBAC'
+}
+
+Table users {
+  id integer [primary key, increment]
+  username varchar(100) [not null, unique]
+  password_hash varchar(255) [not null]
+  full_name varchar(255)
+  email varchar(255) [unique]
+  phone varchar(20)
+  role_id integer [not null]
+  status varchar(20) [not null, default: 'ACTIVE', note: 'ACTIVE, INACTIVE, LOCKED, PENDING']
+  last_login timestamp
+  staff_code varchar(50) [unique]
+  avatar_url varchar(500)
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+  deleted_at timestamp
+
+  Note: 'Người dùng: chủ cửa hàng, quản lý, nhân viên bán hàng, nhân viên grooming'
+}
+
+Table store_profile {
+  id integer [primary key, increment]
+  owner_id integer [not null]
+  name varchar(255) [not null]
+  business_category varchar(255) [default: 'PET_STORE']
+  address text
+  phone varchar(30)
+  email varchar(255)
+  website varchar(500)
+  tax_code varchar(50)
+  logo_url varchar(500)
+  currency varchar(10) [default: 'VND']
+  timezone varchar(50) [default: 'Asia/Ho_Chi_Minh']
+  opening_hours jsonb [default: '{}']
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  Note: 'Hồ sơ cửa hàng thú cưng'
+}
+
+Table refresh_tokens {
+  id integer [primary key, increment]
+  user_id integer [not null]
+  token varchar(64) [not null, unique]
+  expires_at timestamp [not null]
+  user_agent varchar(500)
+  ip_address varchar(45)
+  created_at timestamp [not null, default: `now()`]
+  deleted_at timestamp
+
+  Note: 'Refresh Token xác thực JWT'
+}
+
+Table notifications {
+  id integer [primary key, increment]
+  user_id integer [not null]
+  notification_type varchar(30) [not null]
+  title varchar(255) [not null]
+  message text
+  is_read boolean [not null, default: false]
+  reference_type varchar(50)
+  reference_id integer
+  created_at timestamp [not null, default: `now()`]
+  read_at timestamp
+
+  Note: 'Thông báo đẩy cho nhân viên/quản lý'
+}
+
+Table system_logs {
+  id bigint [primary key, increment]
+  log_level varchar(20) [not null, note: 'DEBUG, INFO, WARN, ERROR, FATAL']
+  module varchar(100)
+  action varchar(255)
+  user_id integer
+  message text
+  stack_trace text
+  context_data jsonb [default: '{}']
+  ip_address varchar(45)
+  created_at timestamp [not null, default: `now()`]
+
+  Note: 'Log kỹ thuật và sự kiện hệ thống'
+}
+
+Table alert_setting {
+  id integer [primary key, increment]
+  owner_id integer [not null]
+  alert_type varchar(30) [not null, note: 'LOW_STOCK, EXPIRY_SOON, REVENUE_ANOMALY, BOOKING_REMINDER, REORDER_REMINDER']
+  threshold_value decimal(10,2)
+  channel varchar(20) [note: 'EMAIL, SMS, PUSH, IN_APP']
+  frequency varchar(20) [note: 'INSTANT, DAILY, WEEKLY']
+  is_enabled boolean [not null, default: true]
+  recipients jsonb [default: '[]']
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  Note: 'Cấu hình cảnh báo tồn kho, cận hạn, doanh thu, lịch hẹn'
+}
+
+Table user_table_column_settings {
+  id integer [primary key, increment]
+  user_id integer [not null]
+  table_key varchar(80) [not null]
+  hidden_columns jsonb [default: '[]']
+  column_order jsonb [default: '[]']
+  updated_by bigint
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  Note: 'Tùy biến cột hiển thị bảng theo từng người dùng'
+}
+
+Table staff_password_reset_request {
+  id integer [primary key, increment]
+  user_id integer [not null]
+  message text
+  status varchar(20) [not null, default: 'PENDING', note: 'PENDING, APPROVED, REJECTED, EXPIRED']
+  processed_by integer
+  created_at timestamp [not null, default: `now()`]
+  processed_at timestamp
+
+  Note: 'Yêu cầu đặt lại mật khẩu của nhân viên'
+}
+
+// ============================================================
+// 2. NHÓM SẢN PHẨM & DANH MỤC (CATALOG & PRODUCTS)
+//    - Thức ăn khô, thức ăn ướt, snack, thuốc bổ, phụ kiện
+// ============================================================
+
+Table categories {
+  id integer [primary key, increment]
+  category_code varchar(50) [not null, unique]
+  name varchar(255) [not null]
+  description text
+  parent_id integer
+  sort_order integer [default: 0]
+  status varchar(20) [not null, default: 'ACTIVE', note: 'ACTIVE, INACTIVE']
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+  deleted_at timestamp
+
+  Note: 'Danh mục sản phẩm (thức ăn, snack, phụ kiện, thuốc bổ...)'
+}
+
+Table products {
+  id integer [primary key, increment]
+  category_id integer
+  sku_code varchar(50) [not null, unique]
+  barcode varchar(100) [unique]
+  name varchar(255) [not null]
+  image_url varchar(500)
+  description text
+  weight decimal(10,4) [default: 0]
+  pet_type varchar(20) [note: 'DOG, CAT, SMALL_PET, BIRD, FISH, ALL, OTHER']
+  product_type varchar(30) [note: 'FOOD_DRY, FOOD_WET, SNACK, SUPPLEMENT, ACCESSORY, HYGIENE, TOY, OTHER']
+  status varchar(20) [not null, default: 'ACTIVE', note: 'ACTIVE, INACTIVE, DISCONTINUED']
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+  deleted_at timestamp
+
+  Note: 'Sản phẩm dành cho thú cưng: thức ăn, phụ kiện, thuốc bổ'
+}
+
+Table product_units {
+  id integer [primary key, increment]
+  product_id integer [not null]
+  unit_name varchar(50) [not null]
+  conversion_rate decimal(12,4) [not null, default: 1]
+  is_base_unit boolean [not null, default: false]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  Note: 'Đơn vị tính và tỷ lệ quy đổi (Gói, Lon, Thùng, Bao)'
+}
+
+Table product_images {
+  id integer [primary key, increment]
+  product_id integer [not null]
+  image_url varchar(500) [not null]
+  alt_text varchar(500)
+  is_primary boolean [not null, default: false]
+  sort_order integer [default: 0]
+  file_size_bytes integer
+  mime_type varchar(100)
+  created_at timestamp [not null, default: `now()`]
+
+  Note: 'Hình ảnh đính kèm sản phẩm'
+}
+
+Table product_price_history {
+  id integer [primary key, increment]
+  product_id integer [not null]
+  cost_price decimal(15,2) [not null, default: 0]
+  sale_price decimal(15,2) [not null, default: 0]
+  effective_date date [not null]
+  created_at timestamp [not null, default: `now()`]
+
+  Note: 'Lịch sử thay đổi giá vốn và giá bán'
+}
+
+Table product_attributes {
+  id integer [primary key, increment]
+  product_id integer [not null]
+  attribute_code varchar(50) [not null, note: 'AGE_RANGE, SPECIAL_DIET, FLAVOR, PROTEIN_TYPE, SIZE, BREED_SIZE, GRAIN_FREE, HYPOALLERGENIC']
+  attribute_value varchar(255) [not null]
+  source varchar(50) [default: 'MANUFACTURER_LABEL', note: 'MANUFACTURER_LABEL, DISTRIBUTOR_DOC, MANUAL']
+  created_at timestamp [not null, default: `now()`]
+
+  Note: 'Thuộc tính sản phẩm phục vụ tra cứu (grain-free, độ tuổi, vị...)'
+}
+
+// ============================================================
+// 3. NHÓM NHÀ CUNG CẤP & NHẬP KHO (PROCUREMENT & SUPPLIERS)
+// ============================================================
+
+Table suppliers {
+  id integer [primary key, increment]
+  supplier_code varchar(50) [not null, unique]
+  name varchar(255) [not null]
+  contact_person varchar(255)
+  phone varchar(20)
+  email varchar(255)
+  addr text
+  tax_code varchar(50)
+  status varchar(20) [not null, default: 'ACTIVE', note: 'ACTIVE, INACTIVE, BLOCKED']
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+  deleted_at timestamp
+
+  Note: 'Nhà phân phối thức ăn, phụ kiện thú cưng'
+}
+
+Table stock_receipts {
+  id integer [primary key, increment]
+  receipt_code varchar(50) [not null, unique]
+  supplier_id integer
+  staff_id integer
+  receipt_date date [not null]
+  status varchar(20) [not null, default: 'DRAFT', note: 'DRAFT, PENDING, APPROVED, REJECTED, CANCELLED']
+  invoice_number varchar(100)
+  total_amount decimal(15,2) [not null, default: 0]
+  notes text
+  approved_by integer
+  approved_at timestamp
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  Note: 'Phiếu nhập kho từ nhà cung cấp'
+}
+
+Table stock_receipt_detail {
+  id integer [primary key, increment]
+  receipt_id integer [not null]
+  product_id integer [not null]
+  unit_id integer
+  quantity decimal(15,4) [not null]
+  cost_price decimal(15,2) [not null]
+  batch_number varchar(100)
+  expiry_date date
+  line_total decimal(15,2) [not null, default: 0]
+  created_at timestamp [not null, default: `now()`]
+
+  Note: 'Chi tiết nhập kho theo lô & hạn sử dụng (quan trọng với thức ăn)'
+}
+
+// ============================================================
+// 4. NHÓM KHO VẬN & TỒN KHO (INVENTORY MANAGEMENT)
+// ============================================================
+
+Table locations {
+  id integer [primary key, increment]
+  location_code varchar(50) [not null, unique]
+  name varchar(255) [not null]
+  address text
+  type varchar(20) [default: 'WAREHOUSE', note: 'WAREHOUSE, STORE, TRANSIT, RETURN']
+  status varchar(20) [not null, default: 'ACTIVE', note: 'ACTIVE, INACTIVE']
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  Note: 'Kho tổng, kho cửa hàng'
+}
+
+Table inventory {
+  id integer [primary key, increment]
+  product_id integer [not null]
+  location_id integer [not null]
+  batch_number varchar(100) [not null, default: 'DEFAULT']
+  expiry_date date
+  quantity decimal(15,4) [not null, default: 0]
+  min_quantity decimal(15,4) [not null, default: 0]
+  updated_at timestamp [not null, default: `now()`]
+
+  Note: 'Tồn kho thực tế theo sản phẩm, kho, lô và HSD'
+}
+
+Table stock_dispatches {
+  id integer [primary key, increment]
+  dispatch_code varchar(50) [not null, unique]
+  order_id integer
+  user_id integer
+  location_id integer
+  dispatch_date date [not null]
+  status varchar(20) [not null, default: 'DRAFT', note: 'DRAFT, PENDING, SHIPPED, DELIVERED, CANCELLED']
+  notes text
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  Note: 'Phiếu xuất kho bán lẻ hoặc điều chuyển nội bộ'
+}
+
+Table stock_dispatch_lines {
+  id integer [primary key, increment]
+  dispatch_id integer [not null]
+  product_id integer [not null]
+  inventory_id integer
+  quantity decimal(15,4) [not null]
+  unit_price_snapshot numeric(15,2) [not null, default: 0]
+  created_at timestamp [not null, default: `now()`]
+
+  Note: 'Chi tiết mặt hàng trên phiếu xuất kho'
+}
+
+Table inventory_log {
+  id bigint [primary key, increment]
+  product_id integer [not null]
+  action_type varchar(20) [not null, note: 'IN, OUT, ADJUST, TRANSFER, RETURN']
+  quantity_change decimal(15,4) [not null]
+  unit_id integer
+  user_id integer
+  dispatch_id integer
+  receipt_id integer
+  from_location_id integer
+  to_location_id integer
+  reference_note varchar(255)
+  created_at timestamp [not null, default: `now()`]
+
+  Note: 'Sổ thẻ kho ghi nhận mọi biến động xuất nhập tồn'
+}
+
+// ============================================================
+// 5. NHÓM KHÁCH HÀNG & BÁN HÀNG (SALES & CUSTOMERS)
+// ============================================================
+
+Table customers {
+  id integer [primary key, increment]
+  customer_code varchar(20) [not null, unique]
+  name varchar(255) [not null]
+  phone varchar(20)
+  email varchar(255)
+  addr text
+  loyalty_points integer [not null, default: 0]
+  total_spent decimal(15,2) [not null, default: 0]
+  status varchar(20) [not null, default: 'ACTIVE', note: 'ACTIVE, INACTIVE, BLOCKED']
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+  deleted_at timestamp
+
+  Note: 'Hồ sơ khách hàng (chủ nuôi) và điểm tích lũy'
+}
+
+Table sale_orders {
+  id integer [primary key, increment]
+  order_code varchar(50) [not null, unique]
+  customer_id integer
+  pet_id integer
+  user_id integer
+  total_amount decimal(15,2) [not null, default: 0]
+  discount_amount decimal(15,2) [not null, default: 0]
+  final_amount decimal(15,2) [not null, default: 0]
+  paid_amount decimal(15,2) [not null, default: 0]
+  status varchar(20) [not null, default: 'DRAFT', note: 'DRAFT, PENDING, CONFIRMED, SHIPPED, DELIVERED, CANCELLED, RETURNED']
+  parent_order_id integer
+  shipping_address text
+  notes text
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+  cancelled_at timestamp
+  cancelled_by integer
+
+  Note: 'Đơn hàng bán sản phẩm cho thú cưng'
+}
+
+Table order_detail {
+  id integer [primary key, increment]
+  order_id integer [not null]
+  product_id integer [not null]
+  unit_id integer
+  quantity decimal(15,4) [not null]
+  price_at_time decimal(15,2) [not null]
+  line_total decimal(15,2) [not null, default: 0]
+  dispatched_qty decimal(15,4) [not null, default: 0]
+  created_at timestamp [not null, default: `now()`]
+
+  Note: 'Chi tiết từng món hàng trong đơn hàng'
+}
+
+Table vouchers {
+  id integer [primary key, increment]
+  code varchar(50) [not null, unique]
+  name varchar(255) [not null]
+  discount_type varchar(20) [not null, note: 'PERCENT, FIXED']
+  discount_value numeric(15,2) [not null]
+  max_discount numeric(15,2)
+  min_order_value numeric(15,2) [default: 0]
+  applies_to varchar(20) [not null, default: 'ALL', note: 'PRODUCT, SERVICE, ALL']
+  is_active boolean [not null, default: true]
+  valid_from date [not null]
+  valid_to date [not null]
+  used_count integer [not null, default: 0]
+  max_uses integer
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  Note: 'Mã khuyến mãi cho sản phẩm hoặc dịch vụ grooming'
+}
+
+Table vouchers_redemptions {
+  id integer [primary key, increment]
+  voucher_id integer [not null]
+  sales_order_id integer [not null]
+  discount_used decimal(15,2) [not null, default: 0]
+  created_at timestamp [not null, default: `now()`]
+
+  Note: 'Lịch sử áp dụng voucher vào đơn hàng'
+}
+
+Table order_payments {
+  id integer [primary key, increment]
+  order_id integer [not null]
+  payment_code varchar(50) [not null, unique]
+  method varchar(30) [not null, note: 'CASH, BANK_TRANSFER, CARD, E_WALLET, COD']
+  amount decimal(15,2) [not null]
+  transaction_ref varchar(255)
+  status varchar(20) [not null, default: 'PENDING', note: 'PENDING, SUCCESS, FAILED, REFUNDED']
+  paid_at timestamp
+  notes text
+  created_by integer
+  created_at timestamp [not null, default: `now()`]
+
+  Note: 'Thanh toán đơn hàng (hỗ trợ nhiều đợt/phương thức)'
+}
+
+// ============================================================
+// 6. NHÓM TÀI CHÍNH & SỔ QUỸ (FINANCE & CASH FUNDS)
+// ============================================================
+
+Table cash_funds {
+  id integer [primary key, increment]
+  code varchar(30) [not null, unique]
+  name varchar(255) [not null]
+  fund_type varchar(20) [default: 'CASH', note: 'CASH, BANK, E_WALLET']
+  balance decimal(15,2) [not null, default: 0]
+  is_default boolean [not null, default: false]
+  is_active boolean [not null, default: true]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  Note: 'Quỹ tiền mặt hoặc tài khoản ngân hàng'
+}
+
+Table finance_ledger {
+  id integer [primary key, increment]
+  ledger_code varchar(50) [unique]
+  transaction_date date [not null]
+  transaction_type varchar(30) [not null, note: 'INCOME, EXPENSE, TRANSFER, ADJUSTMENT']
+  reference_type varchar(30) [note: 'ORDER, RECEIPT, DISPATCH, PAYMENT, SERVICE_PAYMENT, BOOKING, MANUAL, OTHER']
+  reference_id integer
+  amount decimal(15,2) [not null]
+  description text
+  created_by integer
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  Note: 'Sổ cái kế toán hạch toán tổng thể'
+}
+
+Table cash_transactions {
+  id integer [primary key, increment]
+  transaction_code varchar(50) [not null, unique]
+  fund_id integer
+  direction varchar(10) [not null, note: 'IN, OUT']
+  amount decimal(15,2) [not null]
+  category varchar(255)
+  description text
+  payment_method varchar(30)
+  status varchar(20) [not null, default: 'PENDING', note: 'PENDING, COMPLETED, CANCELLED']
+  transaction_date date [not null]
+  finance_ledger_id integer
+  created_by integer
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  Note: 'Phiếu thu/chi theo quỹ (bao gồm thu tiền dịch vụ grooming)'
+}
+
+// ============================================================
+// 7. KIỂM TOÁN HỆ THỐNG (AUDIT TRAIL)
+// ============================================================
+
+Table audit_logs {
+  id bigint [primary key, increment]
+  table_name varchar(100) [not null]
+  record_id bigint [not null]
+  action varchar(10) [not null, note: 'INSERT, UPDATE, DELETE']
+  old_data jsonb
+  new_data jsonb
+  changed_by integer
+  changed_at timestamp [not null, default: `now()`]
+
+  Note: 'Audit log chi tiết thay đổi dữ liệu (CDC)'
+}
+
+// ============================================================
+// 8. AI OPERATIONS ASSISTANT MODULE (LLM & TOOLS)
+// ============================================================
+
+Table ai_conversations {
+  id bigint [primary key, increment]
+  session_id varchar(128) [not null, unique]
+  store_id bigint [not null]
+  title varchar(255)
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [default: `now()`]
+
+  Note: 'Phiên hội thoại giữa người dùng và Trợ lý AI'
+}
+
+Table ai_messages {
+  id bigint [primary key, increment]
+  conversation_id bigint [not null]
+  role varchar(16) [not null, note: 'user, assistant, system']
+  content text [not null]
+  intent varchar(64) [note: 'QUERY_REVENUE, QUERY_STOCK, QUERY_EXPIRY, SUGGEST_REORDER, CREATE_DRAFT, BOOK_SERVICE, TRACK_PET, BLOCKED_MEDICAL_INTENT']
+  status varchar(32) [note: 'OK, INFO_ONLY_WITH_DISCLAIMER, BLOCKED_MEDICAL_INTENT, NEEDS_CONFIRMATION, ERROR']
+  created_at timestamp [not null, default: `now()`]
+
+  Note: 'Tin nhắn hội thoại kèm ngữ cảnh, ý định và trạng thái guardrail'
+}
+
+Table ai_tool_calls {
+  id bigint [primary key, increment]
+  message_id bigint [not null]
+  tool_name varchar(100) [not null]
+  arguments text
+  status varchar(32) [note: 'success, error, rejected']
+  error_message varchar(1024)
+  created_at timestamp [not null, default: `now()`]
+
+  Note: 'Nhật ký gọi công cụ (Function Calling) từ Agent'
+}
+
+Table ai_tool_results {
+  id bigint [primary key, increment]
+  tool_call_id bigint [not null]
+  result_data text
+  error_message varchar(1024)
+  created_at timestamp [not null, default: `now()`]
+
+  Note: 'Kết quả trả về từ công cụ cho Agent'
+}
+
+// ============================================================
+// 9. NHÓM THÚ CƯNG (PETS)
+// ============================================================
+
+Table pets {
+  id integer [primary key, increment]
+  customer_id integer [not null]
+  name varchar(100) [not null]
+  species varchar(20) [not null, note: 'DOG, CAT, SMALL_PET, BIRD, FISH, OTHER']
+  breed varchar(100)
+  gender varchar(10) [note: 'MALE, FEMALE, UNKNOWN']
+  birth_date date
+  weight_kg decimal(6,2)
+  color varchar(50)
+  allergies text
+  health_notes text
+  photo_url varchar(500)
+  is_active boolean [not null, default: true]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+  deleted_at timestamp
+
+  Note: 'Hồ sơ thú cưng của khách hàng (loài, giống, tuổi, cân nặng, dị ứng)'
+}
+
+// ============================================================
+// 10. NHÓM DỊCH VỤ GROOMING / SPA (SERVICES)
+// ============================================================
+
+Table services {
+  id integer [primary key, increment]
+  service_code varchar(50) [not null, unique]
+  name varchar(255) [not null]
+  category varchar(50) [note: 'GROOMING, SPA, BATH, NAIL, EAR, DENTAL, OTHER']
+  description text
+  duration_minutes integer [not null, default: 30]
+  base_price decimal(15,2) [not null]
+  pet_type varchar(20) [note: 'DOG, CAT, ALL']
+  is_active boolean [not null, default: true]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  Note: 'Danh mục dịch vụ grooming, spa, chăm sóc thú cưng'
+}
+
+Table service_bookings {
+  id integer [primary key, increment]
+  booking_code varchar(50) [not null, unique]
+  customer_id integer [not null]
+  pet_id integer [not null]
+  staff_id integer
+  booking_date date [not null]
+  start_time time [not null]
+  end_time time
+  status varchar(20) [not null, default: 'PENDING', note: 'PENDING, CONFIRMED, IN_PROGRESS, COMPLETED, CANCELLED, NO_SHOW']
+  total_amount decimal(15,2) [not null, default: 0]
+  notes text
+  completed_at timestamp
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  Note: 'Lịch hẹn dịch vụ grooming/spa cho thú cưng'
+}
+
+Table service_booking_items {
+  id integer [primary key, increment]
+  booking_id integer [not null]
+  service_id integer [not null]
+  price_at_time decimal(15,2) [not null]
+  quantity integer [not null, default: 1]
+  line_total decimal(15,2) [not null, default: 0]
+  notes text
+  created_at timestamp [not null, default: `now()`]
+
+  Note: 'Chi tiết các dịch vụ trong một lịch hẹn'
+}
+
+Table service_payments {
+  id integer [primary key, increment]
+  booking_id integer [not null]
+  payment_code varchar(50) [not null, unique]
+  method varchar(30) [not null, note: 'CASH, BANK_TRANSFER, CARD, E_WALLET']
+  amount decimal(15,2) [not null]
+  transaction_ref varchar(255)
+  status varchar(20) [not null, default: 'PENDING', note: 'PENDING, SUCCESS, FAILED, REFUNDED']
+  paid_at timestamp
+  notes text
+  created_by integer
+  created_at timestamp [not null, default: `now()`]
+
+  Note: 'Thanh toán cho lịch hẹn dịch vụ'
+}
+
+// ============================================================
+// QUAN HỆ KHÓA NGOẠI (FOREIGN KEY REFERENCES)
+// ============================================================
+
+// --- System & Users ---
+Ref: users.role_id > roles.id
+Ref: store_profile.owner_id > users.id
+Ref: refresh_tokens.user_id > users.id
+Ref: notifications.user_id > users.id
+Ref: system_logs.user_id > users.id
+Ref: alert_setting.owner_id > users.id
+Ref: user_table_column_settings.user_id > users.id
+Ref: staff_password_reset_request.user_id > users.id
+Ref: staff_password_reset_request.processed_by > users.id
+Ref: audit_logs.changed_by > users.id
+
+// --- Products & Catalog ---
+Ref: categories.parent_id - categories.id
+Ref: products.category_id > categories.id
+Ref: product_units.product_id > products.id
+Ref: product_images.product_id > products.id
+Ref: product_price_history.product_id > products.id
+Ref: product_attributes.product_id > products.id
+
+// --- Suppliers & Stock Receipts ---
+Ref: stock_receipts.supplier_id > suppliers.id
+Ref: stock_receipts.staff_id > users.id
+Ref: stock_receipts.approved_by > users.id
+Ref: stock_receipt_detail.receipt_id > stock_receipts.id
+Ref: stock_receipt_detail.product_id > products.id
+Ref: stock_receipt_detail.unit_id > product_units.id
+
+// --- Inventory & Dispatches ---
+Ref: inventory.product_id > products.id
+Ref: inventory.location_id > locations.id
+Ref: stock_dispatches.order_id > sale_orders.id
+Ref: stock_dispatches.user_id > users.id
+Ref: stock_dispatches.location_id > locations.id
+Ref: stock_dispatch_lines.dispatch_id > stock_dispatches.id
+Ref: stock_dispatch_lines.product_id > products.id
+Ref: stock_dispatch_lines.inventory_id > inventory.id
+
+Ref: inventory_log.product_id > products.id
+Ref: inventory_log.unit_id > product_units.id
+Ref: inventory_log.user_id > users.id
+Ref: inventory_log.dispatch_id > stock_dispatches.id
+Ref: inventory_log.receipt_id > stock_receipts.id
+Ref: inventory_log.from_location_id > locations.id
+Ref: inventory_log.to_location_id > locations.id
+
+// --- Sales & Orders ---
+Ref: sale_orders.customer_id > customers.id
+Ref: sale_orders.pet_id > pets.id
+Ref: sale_orders.user_id > users.id
+Ref: sale_orders.parent_order_id - sale_orders.id
+Ref: sale_orders.cancelled_by > users.id
+Ref: order_detail.order_id > sale_orders.id
+Ref: order_detail.product_id > products.id
+Ref: order_detail.unit_id > product_units.id
+Ref: vouchers_redemptions.voucher_id > vouchers.id
+Ref: vouchers_redemptions.sales_order_id > sale_orders.id
+Ref: order_payments.order_id > sale_orders.id
+Ref: order_payments.created_by > users.id
+
+// --- Finance ---
+Ref: cash_transactions.fund_id > cash_funds.id
+Ref: cash_transactions.finance_ledger_id > finance_ledger.id
+Ref: cash_transactions.created_by > users.id
+Ref: finance_ledger.created_by > users.id
+
+// --- AI Assistant ---
+Ref: ai_messages.conversation_id > ai_conversations.id
+Ref: ai_tool_calls.message_id > ai_messages.id
+Ref: ai_tool_results.tool_call_id > ai_tool_calls.id
+
+// --- Pets ---
+Ref: pets.customer_id > customers.id
+
+// --- Services ---
+Ref: service_bookings.customer_id > customers.id
+Ref: service_bookings.pet_id > pets.id
+Ref: service_bookings.staff_id > users.id
+Ref: service_booking_items.booking_id > service_bookings.id
+Ref: service_booking_items.service_id > services.id
+Ref: service_payments.booking_id > service_bookings.id
+Ref: service_payments.created_by > users.id
+
+// ============================================================
+// DỮ LIỆU MẪU (RECORDS)
+// ============================================================
+
+Records roles(id, name, description, is_system) {
+  1, 'ADMIN', 'Quản trị viên toàn quyền', true
+  2, 'MANAGER', 'Quản lý cửa hàng', true
+  3, 'STAFF', 'Nhân viên bán hàng / thu ngân', true
+  4, 'GROOMER', 'Nhân viên grooming / spa', true
+}
+
+Records users(id, username, password_hash, full_name, email, role_id, status) {
+  1, 'admin', '$2a$10$e8..mockhash..', 'Nguyễn Quản Trị', 'admin@petstore.vn', 1, 'ACTIVE'
+  2, 'manager1', '$2a$10$e8..mockhash..', 'Trần Quản Lý', 'manager@petstore.vn', 2, 'ACTIVE'
+  3, 'staff1', '$2a$10$e8..mockhash..', 'Lê Thu Ngân', 'staff@petstore.vn', 3, 'ACTIVE'
+  4, 'groomer1', '$2a$10$e8..mockhash..', 'Phạm Groomer', 'groomer@petstore.vn', 4, 'ACTIVE'
+}
+
+Records locations(id, location_code, name, address, type, status) {
+  1, 'WH001', 'Kho tổng Hà Nội', '123 Cầu Giấy, Hà Nội', 'WAREHOUSE', 'ACTIVE'
+  2, 'ST001', 'Cửa hàng Thú cưng PetHouse', '45 Hai Bà Trưng, Hà Nội', 'STORE', 'ACTIVE'
+}
+
+Records cash_funds(id, code, name, fund_type, balance, is_default, is_active) {
+  1, 'CASH001', 'Quỹ tiền mặt quầy thu ngân', 'CASH', 5000000.00, true, true
+  2, 'BANK001', 'Tài khoản Vietcombank', 'BANK', 50000000.00, false, true
+}
+
+Records categories(id, category_code, name, sort_order, status) {
+  1, 'CAT-FOOD', 'Thức ăn cho thú cưng', 1, 'ACTIVE'
+  2, 'CAT-SNACK', 'Snack & Bánh thưởng', 2, 'ACTIVE'
+  3, 'CAT-ACC', 'Phụ kiện & Đồ chơi', 3, 'ACTIVE'
+  4, 'CAT-HYG', 'Vệ sinh & Chăm sóc', 4, 'ACTIVE'
+}
+
+Records products(id, category_id, sku_code, barcode, name, pet_type, product_type, status) {
+  1, 1, 'SKU-ROYAL-CAT-2KG', '893500220001', 'Royal Canin Adult Mèo 2kg', 'CAT', 'FOOD_DRY', 'ACTIVE'
+  2, 1, 'SKU-PEDIGREE-DOG-3KG', '893500220002', 'Pedigree Adult Chó 3kg', 'DOG', 'FOOD_DRY', 'ACTIVE'
+  3, 2, 'SKU-WHISKAS-SNACK', '893500220003', 'Whiskas Snack Vị Cá', 'CAT', 'SNACK', 'ACTIVE'
+  4, 3, 'SKU-TOY-BALL', '893500220004', 'Bóng đồ chơi cho mèo', 'CAT', 'TOY', 'ACTIVE'
+}
+
+Records product_units(id, product_id, unit_name, conversion_rate, is_base_unit) {
+  1, 1, 'Bao 2kg', 1.0, true
+  2, 1, 'Thùng 6 bao', 6.0, false
+  3, 2, 'Bao 3kg', 1.0, true
+  4, 3, 'Gói', 1.0, true
+  5, 4, 'Cái', 1.0, true
+}
+
+Records product_attributes(id, product_id, attribute_code, attribute_value, source) {
+  1, 1, 'AGE_RANGE', 'ADULT', 'MANUFACTURER_LABEL'
+  2, 1, 'FLAVOR', 'CHICKEN', 'MANUFACTURER_LABEL'
+  3, 2, 'AGE_RANGE', 'ADULT', 'MANUFACTURER_LABEL'
+  4, 2, 'GRAIN_FREE', 'FALSE', 'MANUFACTURER_LABEL'
+}
+
+Records customers(id, customer_code, name, phone, loyalty_points, status) {
+  1, 'KH0001', 'Khách Vãng Lai', '0900000000', 0, 'ACTIVE'
+  2, 'KH0002', 'Hoàng Văn Nam', '0987654321', 150, 'ACTIVE'
+}
+
+Records pets(id, customer_id, name, species, breed, gender, birth_date, weight_kg, is_active) {
+  1, 2, 'Miu', 'CAT', 'Anh lông ngắn', 'FEMALE', '2022-03-15', 4.20, true
+  2, 2, 'Bông', 'DOG', 'Poodle', 'MALE', '2021-11-01', 6.50, true
+}
+
+Records services(id, service_code, name, category, duration_minutes, base_price, pet_type, is_active) {
+  1, 'SV-TAM-MEO', 'Tắm & sấy mèo', 'BATH', 45, 120000.00, 'CAT', true
+  2, 'SV-TAM-CHO', 'Tắm & sấy chó', 'BATH', 60, 150000.00, 'DOG', true
+  3, 'SV-CAT-TIA', 'Cắt tỉa lông toàn thân', 'GROOMING', 90, 250000.00, 'ALL', true
+  4, 'SV-CAT-MONG', 'Cắt móng', 'NAIL', 15, 50000.00, 'ALL', true
+}
+
+// ============================================================
+// END OF SCHEMA
+// ============================================================

@@ -31,6 +31,9 @@ public class Voucher {
     @Column(name = "min_order_value", precision = 15, scale = 2)
     private BigDecimal minOrderValue = BigDecimal.ZERO;
 
+    @Column(name = "applies_to", nullable = false, length = 20)
+    private String appliesTo = "ALL"; // PRODUCT, SERVICE, ALL
+
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
@@ -81,6 +84,8 @@ public class Voucher {
     public void setMaxDiscount(BigDecimal maxDiscount) { this.maxDiscount = maxDiscount; }
     public BigDecimal getMinOrderValue() { return minOrderValue; }
     public void setMinOrderValue(BigDecimal minOrderValue) { this.minOrderValue = minOrderValue; }
+    public String getAppliesTo() { return appliesTo; }
+    public void setAppliesTo(String appliesTo) { this.appliesTo = appliesTo; }
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
     public LocalDate getValidFrom() { return validFrom; }

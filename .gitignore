@@ -22,3 +22,14 @@ dist/
 .idea/
 .vscode/
 .DS_Store
+backend.bak*
+frontend.bak*
+*.bak
+*.bak.*
+coverage/
+test-results/
+*.tsbuildinfo
+lint_error.txt
+.superpowers/
+.agents/
+seed_*.sql
