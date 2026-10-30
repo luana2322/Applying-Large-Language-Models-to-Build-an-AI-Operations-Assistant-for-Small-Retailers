@@ -29,36 +29,38 @@ public class RetailCheckoutCompatController {
                 double lineTotal = price * qty;
                 total += lineTotal;
 
-                resLines.add(Map.of(
-                        "id", idx++,
-                        "productId", lm.get("productId") != null ? lm.get("productId") : 1,
-                        "productName", "Vật tư điện nước & TBVS",
-                        "skuCode", "VT-DN-" + idx,
-                        "quantity", qty,
-                        "unitPrice", price,
-                        "totalPrice", lineTotal,
-                        "unitName", "Cái"
-                ));
+                Map<String, Object> lineObj = new LinkedHashMap<>();
+                lineObj.put("id", idx++);
+                lineObj.put("productId", lm.get("productId") != null ? lm.get("productId") : 1);
+                lineObj.put("productName", "Vật tư điện nước & TBVS");
+                lineObj.put("skuCode", "VT-DN-" + idx);
+                lineObj.put("quantity", qty);
+                lineObj.put("unitName", "Cái");
+                lineObj.put("unitPrice", price);
+                lineObj.put("lineTotal", lineTotal);
+                lineObj.put("totalPrice", lineTotal);
+                resLines.add(lineObj);
             }
         }
 
         if (total == 0.0) {
             total = 720000.0;
-            resLines.add(Map.of(
-                    "id", 1,
-                    "productId", 4,
-                    "productName", "Vòi Lavabo nóng lạnh thân cao Đen mờ",
-                    "skuCode", "TBVS-VOI-01",
-                    "quantity", 1,
-                    "unitPrice", 720000.0,
-                    "totalPrice", 720000.0,
-                    "unitName", "Cái"
-            ));
+            Map<String, Object> lineObj = new LinkedHashMap<>();
+            lineObj.put("id", 1);
+            lineObj.put("productId", 4);
+            lineObj.put("productName", "Vòi Lavabo nóng lạnh thân cao Đen mờ");
+            lineObj.put("skuCode", "TBVS-VOI-01");
+            lineObj.put("quantity", 1);
+            lineObj.put("unitName", "Cái");
+            lineObj.put("unitPrice", 720000.0);
+            lineObj.put("lineTotal", 720000.0);
+            lineObj.put("totalPrice", 720000.0);
+            resLines.add(lineObj);
         }
 
         double finalAmount = Math.max(0.0, total - discount);
 
-        Map<String, Object> detail = new HashMap<>();
+        Map<String, Object> detail = new LinkedHashMap<>();
         detail.put("id", System.currentTimeMillis() % 10000);
         detail.put("orderCode", code);
         detail.put("customerId", body != null ? body.get("customerId") : null);
@@ -70,6 +72,7 @@ public class RetailCheckoutCompatController {
         detail.put("orderChannel", "Retail");
         detail.put("paymentStatus", paymentStatus);
         detail.put("itemsCount", resLines.size());
+        detail.put("lines", resLines);
         detail.put("items", resLines);
         detail.put("createdAt", LocalDateTime.now().toString());
         detail.put("updatedAt", LocalDateTime.now().toString());
