@@ -48,60 +48,7 @@ public class FullOperationsCompatController {
         this.roleRepository = roleRepository;
     }
 
-    // 1. DASHBOARD
-    @GetMapping("/dashboard")
-    public ResponseEntity<Map<String, Object>> getDashboard() {
-        Map<String, Object> financial = Map.of(
-                "todayRevenue", 4090000.0,
-                "yesterdayRevenue", 3500000.0,
-                "todayOrders", 4,
-                "pctChange", 16.8,
-                "avgOrderValue", 1022500.0
-        );
-
-        List<Map<String, Object>> trend = List.of(
-                Map.of("date", "2026-10-22", "label", "22/10", "revenue", 2100000, "profit", 750000, "orders", 3),
-                Map.of("date", "2026-10-23", "label", "23/10", "revenue", 2800000, "profit", 980000, "orders", 4),
-                Map.of("date", "2026-10-24", "label", "24/10", "revenue", 3400000, "profit", 1200000, "orders", 5),
-                Map.of("date", "2026-10-25", "label", "25/10", "revenue", 3100000, "profit", 1100000, "orders", 4),
-                Map.of("date", "2026-10-26", "label", "26/10", "revenue", 4200000, "profit", 1500000, "orders", 6),
-                Map.of("date", "2026-10-27", "label", "27/10", "revenue", 3900000, "profit", 1400000, "orders", 5),
-                Map.of("date", "2026-10-28", "label", "Hôm nay", "revenue", 4090000, "profit", 1520000, "orders", 4)
-        );
-
-        Map<String, Object> channels = Map.of(
-                "retail", 3250000.0,
-                "wholesale", 840000.0,
-                "total", 4090000.0
-        );
-
-        Map<String, Object> kpis = Map.of(
-                "totalSkus", 8,
-                "totalValue", 28500000.0,
-                "lowStockCount", 2,
-                "expiringSoonCount", 1,
-                "pendingOrders", 1,
-                "allOrdersTotal", 4,
-                "pendingApprovals", 0,
-                "approvalByType", Collections.emptyMap()
-        );
-
-        List<Map<String, Object>> recentOrders = List.of(
-                Map.of("id", 1, "orderCode", "HD-1", "orderChannel", "RETAIL", "customerName", "Hoàng Văn Nam", "finalAmount", 1100000.0, "status", "Delivered", "createdAt", "2026-10-28T10:30:00"),
-                Map.of("id", 2, "orderCode", "HD-2", "orderChannel", "RETAIL", "customerName", "Trần Thị Lan", "finalAmount", 740000.0, "status", "Delivered", "createdAt", "2026-10-28T11:15:00"),
-                Map.of("id", 3, "orderCode", "HD-3", "orderChannel", "RETAIL", "customerName", "Phạm Quốc Bảo", "finalAmount", 500000.0, "status", "Delivered", "createdAt", "2026-10-28T13:45:00"),
-                Map.of("id", 4, "orderCode", "HD-4", "orderChannel", "RETAIL", "customerName", "Ngô Thu Hương", "finalAmount", 1750000.0, "status", "Delivered", "createdAt", "2026-10-28T14:20:00")
-        );
-
-        Map<String, Object> data = new HashMap<>();
-        data.put("financial", financial);
-        data.put("revenueTrend", trend);
-        data.put("channelBreakdown", channels);
-        data.put("kpis", kpis);
-        data.put("recentOrders", recentOrders);
-
-        return ResponseEntity.ok(Map.of("success", true, "data", data));
-    }
+    // 1. DASHBOARD (Delegated to DashboardRichController)
 
     // 2. INVENTORY LIST & SUMMARY
     @GetMapping("/inventory")
