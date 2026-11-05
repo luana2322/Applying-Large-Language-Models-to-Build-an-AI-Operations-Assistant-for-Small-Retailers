@@ -318,9 +318,6 @@ function resolveAiChatStreamUrl(): string {
   if (fromEnv?.trim()) {
     return fromEnv.trim()
   }
-  if (import.meta.env.DEV) {
-    return "http://127.0.0.1:8080/api/v1/ai/chat/stream"
-  }
   return getApiUrl("/api/v1/ai/chat/stream")
 }
 
