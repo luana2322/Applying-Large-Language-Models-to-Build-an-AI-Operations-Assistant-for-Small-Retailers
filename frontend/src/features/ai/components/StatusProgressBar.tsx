@@ -67,80 +67,30 @@ export function StatusProgressBar({ currentStep, isTyping }: StatusProgressBarPr
   const isThinking = !isRunning && isTyping && currentStep?.type === "tool_result"
 
   return (
-    <div className={cn(
-      "flex items-center gap-3 px-4 py-3 rounded-xl border transition-all duration-500",
-      activeBg, "border-slate-200",
-      isRunning && "shadow-sm"
-    )}>
-      <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", activeBg, activeColor)}>
+    <div className="flex items-center gap-3 px-3.5 py-2 rounded-xl bg-slate-50/80 border border-slate-200/80 text-slate-600 shadow-sm transition-all duration-300">
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
         {isThinking ? (
-          <Brain className="h-4 w-4 animate-pulse" />
-        ) : cfg ? (
-          <cfg.icon className="h-4 w-4" />
+          <Brain className="h-3.5 w-3.5 animate-pulse" />
         ) : (
-          <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" />
         )}
       </div>
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          {currentStep ? (
-            <span className="inline-flex items-center rounded-full bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 border border-slate-200 shadow-sm">
-              Bước {currentStep.step}
-            </span>
-          ) : null}
-          {cfg && !isThinking ? (
-            <span className={cn("text-xs font-semibold", cfg.color)}>{cfg.label}</span>
-          ) : null}
-          {isThinking ? (
-            <span className="text-xs font-semibold text-slate-500">Đang suy luận...</span>
-          ) : null}
-        </div>
-        <p className={cn(
-          "text-sm font-medium mt-0.5 flex items-center gap-2",
-          isRunning ? "text-slate-800" : "text-slate-500"
-        )}>
-          {isThinking ? (
-            <>
-              <span className="inline-flex gap-0.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:-0.3s]" />
-                <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:-0.15s]" />
-                <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce" />
-              </span>
-              <span className="text-slate-400">Đang suy luận bước tiếp theo...</span>
-            </>
-          ) : (
-            <>
-              {currentStep?.message ?? (isTyping ? "Đang xử lý..." : "")}
-              {isRunning && (
-                <span className="text-[11px] tabular-nums text-slate-400 font-mono ml-1">
-                  {fmtElapsed(elapsedSec)}
-                </span>
-              )}
-            </>
-            )}
-          </p>
-          {currentStep?.reasoning ? (
-            <details className="mt-2 group">
-              <summary className="text-[10px] text-slate-400 cursor-pointer hover:text-slate-600 select-none">
-                <span className="inline-block mr-1 transition-transform group-open:rotate-90">▶</span>
-                Xem suy luận
-              </summary>
-              <pre className="mt-1.5 p-2 rounded-lg text-[11px] leading-relaxed text-slate-500 whitespace-pre-wrap font-mono bg-white/70 border border-slate-200/70">
-                {currentStep.reasoning}
-              </pre>
-            </details>
-          ) : null}
-        </div>
-
-      <div className="shrink-0">
-        {isRunning ? (
-          <Loader2 className={cn("h-5 w-5 animate-spin", activeColor)} />
-        ) : (
-          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100">
-            <Check className="h-3 w-3 text-emerald-600" />
-          </div>
+      <div className="flex-1 min-w-0 flex items-center gap-2">
+        <span className="text-xs font-medium text-slate-700 truncate">
+          {currentStep?.message || (isThinking ? "Đang suy luận phân tích..." : "Đang xử lý dữ liệu...")}
+        </span>
+        {isRunning && (
+          <span className="text-[11px] tabular-nums text-slate-400 font-mono">
+            ({fmtElapsed(elapsedSec)})
+          </span>
         )}
+      </div>
+
+      <div className="shrink-0 flex items-center gap-1">
+        <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-bounce [animation-delay:-0.3s]" />
+        <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 animate-bounce [animation-delay:-0.15s]" />
+        <span className="h-1.5 w-1.5 rounded-full bg-violet-500 animate-bounce" />
       </div>
     </div>
   )

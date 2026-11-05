@@ -51,6 +51,8 @@ services:
       LLM_PROVIDER: ollama
       OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
       OLLAMA_MODEL: retail-assistant:latest
+      LLM_TIMEOUT_SECONDS: "120"
+      REQUEST_TIMEOUT_SECONDS: "120"
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"

@@ -10,6 +10,7 @@ type Block =
   | { type: "bullet_list"; items: string[] }
   | { type: "ordered_list"; items: string[] }
   | { type: "code_block"; code: string; lang: string | null }
+  | { type: "table"; headers: string[]; rows: string[][] }
 
 function normalizeText(raw: string): string {
   const unified = raw.replace(/\r\n/g, "\n")
@@ -116,14 +117,38 @@ function parseBlocks(text: string): Block[] {
       continue
     }
 
-      const paragraphRows: string[] = []
+    // Markdown Table Detection
+    if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+      const tableLines: string[] = []
       while (i < lines.length) {
+        const tLine = lines[i].trim()
+        if (!tLine.startsWith("|") || !tLine.endsWith("|")) break
+        tableLines.push(tLine)
+        i += 1
+      }
+      if (tableLines.length >= 2) {
+        const splitRow = (row: string) =>
+          row
+            .slice(1, -1)
+            .split("|")
+            .map((c) => c.trim())
+        const headers = splitRow(tableLines[0])
+        const dataRows = tableLines.slice(1).filter((r) => !/^[|\s-:]+$/.test(r))
+        const rows = dataRows.map(splitRow)
+        blocks.push({ type: "table", headers, rows })
+        continue
+      }
+    }
+
+    const paragraphRows: string[] = []
+    while (i < lines.length) {
       const currentRaw = lines[i]
       const current = currentRaw.trim()
       if (!current) break
       if (current.startsWith("```")) break
       if (/^[-*•]\s+/.test(current)) break
       if (/^\d+\.\s+/.test(current)) break
+      if (current.startsWith("|") && current.endsWith("|")) break
       paragraphRows.push(currentRaw)
       i += 1
     }
@@ -192,6 +217,36 @@ export const AiChatMessageText = memo(function AiChatMessageText({ text }: { tex
                 </li>
               ))}
             </ol>
+          )
+        }
+        if (block.type === "table") {
+          return (
+            <div key={idx} className="my-3 overflow-hidden rounded-xl border border-slate-200/90 shadow-xs">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-700 font-semibold">
+                      {block.headers.map((h, hIdx) => (
+                        <th key={hIdx} className="px-3.5 py-2.5 whitespace-nowrap">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {block.rows.map((row, rIdx) => (
+                      <tr key={rIdx} className="hover:bg-slate-50/70 transition-colors">
+                        {row.map((cell, cIdx) => (
+                          <td key={cIdx} className="px-3.5 py-2 text-slate-600">
+                            <InlineText text={cell} />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )
         }
         return (

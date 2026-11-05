@@ -58,7 +58,7 @@ public class StoreChatGatewayController {
         @RequestHeader(value = "X-Store-Code", defaultValue = "STORE-001") String storeCode,
         @RequestBody Map<String, Object> clientRequest
     ) {
-        var emitter = new org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter(60000L);
+        var emitter = new org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter(120000L);
 
         new Thread(() -> {
             try {
