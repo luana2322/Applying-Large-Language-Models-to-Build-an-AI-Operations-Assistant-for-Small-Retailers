@@ -48,12 +48,13 @@ services:
     environment:
       INTERNAL_AUTH_TOKEN: retail-internal-secret-token-v1
       BUSINESS_API_BASE_URL: http://backend:8080/internal/api/v1/business
-      LLM_PROVIDER: ollama
+      LLM_PROVIDER: gemini
       OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
       OLLAMA_MODEL: retail-assistant:latest
-      LLM_TIMEOUT_SECONDS: "120"
-      REQUEST_TIMEOUT_SECONDS: "120"
+      LLM_TIMEOUT_SECONDS: "30"
+      REQUEST_TIMEOUT_SECONDS: "30"
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.8-flash}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:

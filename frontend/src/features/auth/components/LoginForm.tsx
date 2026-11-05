@@ -281,6 +281,39 @@ export function LoginForm() {
               "Đăng nhập"
             )}
           </Button>
+
+          {/* Quick Demo Accounts for RBAC */}
+          <div className="pt-3 border-t border-slate-100 flex flex-col gap-2">
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">
+              Chọn nhanh tài khoản thử nghiệm (RBAC):
+            </span>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-xs font-bold border-cyan-500 text-cyan-700 hover:bg-cyan-50"
+                onClick={() => {
+                  setValue("email", "owner@diennuocminhthanh.vn")
+                  setValue("password", "123456")
+                }}
+              >
+                👑 Chủ cửa hàng (Owner)
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-xs font-bold border-amber-500 text-amber-700 hover:bg-amber-50"
+                onClick={() => {
+                  setValue("email", "staff@diennuocminhthanh.vn")
+                  setValue("password", "123456")
+                }}
+              >
+                🧑‍💼 Nhân viên (Staff)
+              </Button>
+            </div>
+          </div>
         </form>
       </CardContent>
 
