@@ -5,11 +5,13 @@ from app.config import settings
 from app.agent.prompt_builder import prompt_builder
 from app.agent.context_manager import context_manager
 from app.agent.response_validator import response_validator
+from app.agent.hybrid_router import intent_router
 from app.tools.registry import registry
 from app.clients.business_api_client import BusinessApiClient
 from app.llm.client import get_llm_adapter
 from app.schemas.chat_request import ChatRequest
 from app.schemas.chat_response import ChatResponse, ToolCallRecord, ChatError
+from app.llm.provider_adapter import LLMToolCall, LLMResponse
 import logging
 
 logger = logging.getLogger(__name__)
@@ -95,26 +97,38 @@ class AgentOrchestrator:
         turn_count = 0
         total_tool_calls = 0
 
+        # Hybrid Intent Router: Tự động phát hiện ý định rõ ràng của người dùng ngay từ turn đầu
+        pre_routed = intent_router.route(request.message)
+
         while turn_count < settings.max_turns_per_req:
             turn_count += 1
             history = context_manager.get_history(request.session_id)
 
-            try:
-                llm_response = await self.llm_adapter.generate(
-                    system_instruction=system_instruction,
-                    history=history,
-                    message=current_message,
-                    tool_declarations=tool_declarations
+            # Nếu Router nhận diện được intent rõ ràng ở turn đầu tiên, ưu tiên gọi thẳng Tool
+            if turn_count == 1 and pre_routed:
+                tool_name, tool_args = pre_routed
+                logger.info(f"Hybrid Router fast-routed query '{request.message}' to tool {tool_name} with args {tool_args}")
+                llm_response = LLMResponse(
+                    is_tool_call=True,
+                    tool_calls=[LLMToolCall(name=tool_name, arguments=tool_args)]
                 )
-            except Exception as e:
-                logger.error(f"LLM Generation failure: {e}")
-                return ChatResponse(
-                    request_id=request.request_id,
-                    session_id=request.session_id,
-                    status="failed",
-                    answer="Đã xảy ra lỗi khi giao tiếp với mô hình AI. Vui lòng thử lại sau.",
-                    error=ChatError(code="LLM_PROVIDER_ERROR", message=str(e))
-                )
+            else:
+                try:
+                    llm_response = await self.llm_adapter.generate(
+                        system_instruction=system_instruction,
+                        history=history,
+                        message=current_message,
+                        tool_declarations=tool_declarations
+                    )
+                except Exception as e:
+                    logger.error(f"LLM Generation failure: {e}")
+                    return ChatResponse(
+                        request_id=request.request_id,
+                        session_id=request.session_id,
+                        status="failed",
+                        answer="Đã xảy ra lỗi khi giao tiếp với mô hình AI. Vui lòng thử lại sau.",
+                        error=ChatError(code="LLM_PROVIDER_ERROR", message=str(e))
+                    )
 
             # If model produced a final text answer without tool call
             if not llm_response.is_tool_call or not llm_response.tool_calls:
