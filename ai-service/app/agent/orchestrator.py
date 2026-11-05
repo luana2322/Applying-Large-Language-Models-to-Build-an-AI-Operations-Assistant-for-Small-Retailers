@@ -40,6 +40,42 @@ class AgentOrchestrator:
             "preview": serialized[:max_chars],
         }
 
+    @staticmethod
+    def _compact_tool_payload(tool_name: str, payload: Any) -> Any:
+        """Tối ưu kích thước dữ liệu chuyển cho LLM để phản hồi trong 2-3s."""
+        if not isinstance(payload, dict) or not payload.get("success"):
+            return payload
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            return payload
+
+        # Với dữ liệu tồn kho, chỉ gửi tóm tắt và tối đa 6 sản phẩm cảnh báo quan trọng
+        if tool_name == "get_inventory_status":
+            items = data.get("items", [])
+            abnormal_items = [it for it in items if it.get("stock_status") != "NORMAL"]
+            # Nếu tất cả đều NORMAL thì chỉ lấy 3 sản phẩm mẫu
+            compact_items = (abnormal_items if abnormal_items else items)[:6]
+            return {
+                "success": True,
+                "data": {
+                    "total_items": data.get("total_items", len(items)),
+                    "low_stock_count": data.get("low_stock_count", len(abnormal_items)),
+                    "out_of_stock_count": data.get("out_of_stock_count", 0),
+                    "warning_items": [
+                        {
+                            "name": it.get("name"),
+                            "current_stock": it.get("current_stock"),
+                            "min_stock_level": it.get("min_stock_level"),
+                            "unit": it.get("unit"),
+                            "status": it.get("stock_status")
+                        }
+                        for it in compact_items
+                    ]
+                }
+            }
+
+        return payload
+
     async def run(self, request: ChatRequest, store_id: str) -> ChatResponse:
         session = context_manager.get_or_create_session(request.session_id, store_id)
         system_instruction = prompt_builder.build_system_instruction(
@@ -170,16 +206,17 @@ class AgentOrchestrator:
                 if tool_result.success and tool_result.data is not None:
                     last_tool_data = tool_result.data
 
-                # Feed result back into conversation history
+                # Feed compact result back into conversation history to ensure rapid LLM synthesis
+                compact_dump = self._compact_tool_payload(tc.name, tool_result.model_dump())
                 context_manager.add_message(
                     request.session_id,
                     "tool",
-                    tool_result.model_dump(),
+                    compact_dump,
                     name=tc.name
                 )
 
             # Prepare for next turn
-            current_message = "Vui lòng phân tích kết quả dữ liệu từ công cụ và trả lời câu hỏi của người dùng."
+            current_message = "Vui lòng phân tích ngắn gọn kết quả số liệu trên và trả lời trọng tâm trong 2-3 câu bằng tiếng Việt."
 
         # If turn limit reached
         return response_validator.validate_and_normalize(

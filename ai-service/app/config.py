@@ -23,8 +23,8 @@ class Settings(BaseModel):
     max_tool_calls_per_req: int = int(os.getenv("MAX_TOOL_CALLS_PER_REQ", "5"))
     max_turns_per_req: int = int(os.getenv("MAX_TURNS_PER_REQ", "3"))
     tool_timeout_seconds: float = float(os.getenv("TOOL_TIMEOUT_SECONDS", "10.0"))
-    llm_timeout_seconds: float = float(os.getenv("LLM_TIMEOUT_SECONDS", "120.0"))
-    request_timeout_seconds: float = float(os.getenv("REQUEST_TIMEOUT_SECONDS", "120.0"))
+    llm_timeout_seconds: float = float(os.getenv("LLM_TIMEOUT_SECONDS", "45.0"))
+    request_timeout_seconds: float = float(os.getenv("REQUEST_TIMEOUT_SECONDS", "45.0"))
 
     # Safety: cap stored/logged tool result payload size (characters)
     max_tool_result_chars: int = int(os.getenv("MAX_TOOL_RESULT_CHARS", "20000"))
