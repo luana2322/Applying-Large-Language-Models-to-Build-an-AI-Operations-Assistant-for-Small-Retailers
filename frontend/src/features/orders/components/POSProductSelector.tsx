@@ -135,6 +135,7 @@ export function POSProductSelector() {
       unitName: p.unitName,
       unitPrice,
       lineTotal: unitPrice,
+      availableUnits: p.availableUnits,
     })
     toast.success(`Đã thêm ${p.productName}`)
   }

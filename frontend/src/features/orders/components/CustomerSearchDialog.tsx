@@ -120,14 +120,38 @@ export function CustomerSearchDialog({
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-slate-900">{customer.name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="truncate text-sm font-semibold text-slate-900">{customer.name}</p>
+                            {customer.isExceededCredit && (
+                              <span className="shrink-0 px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 text-[10px] font-black uppercase">
+                                Vượt hạn mức
+                              </span>
+                            )}
+                            {customer.isOverdue && !customer.isExceededCredit && (
+                              <span className="shrink-0 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px] font-black uppercase">
+                                Quá hạn {customer.maxOverdueDays}n
+                              </span>
+                            )}
+                          </div>
                           <p className="mt-1 text-xs text-slate-500">
                             {customer.customerCode} · {customer.phone}
+                            {customer.currentDebt != null && customer.currentDebt > 0 && (
+                              <span className="ml-1 text-rose-600 font-medium">
+                                · Nợ: {Number(customer.currentDebt).toLocaleString()}đ
+                              </span>
+                            )}
                           </p>
                         </div>
-                        <span className="shrink-0 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-500">
-                          {customer.loyaltyPoints} điểm
-                        </span>
+                        <div className="text-right shrink-0">
+                          <span className="block rounded-md border border-slate-200 px-2 py-0.5 text-xs text-slate-500">
+                            {customer.loyaltyPoints} điểm
+                          </span>
+                          {customer.creditLimit != null && (
+                            <span className="block text-[10px] text-slate-400 mt-1 font-mono">
+                              Hạn mức: {(customer.creditLimit / 1000000).toFixed(0)}Tr
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </button>
                   </li>

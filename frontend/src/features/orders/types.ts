@@ -25,4 +25,11 @@ export interface OrderItem {
   unitName: string;
   unitPrice: number;
   lineTotal: number;
+  availableUnits?: {
+    unitId: number;
+    unitName: string;
+    conversionRate: number;
+    price: number;
+    isBase: boolean;
+  }[];
 }

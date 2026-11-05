@@ -16,6 +16,7 @@ interface OrderState {
   addItem: (item: CartItem) => void;
   removeItem: (productId: number, unitId: number) => void;
   updateQuantity: (productId: number, unitId: number, quantity: number) => void;
+  updateItemUnit: (productId: number, oldUnitId: number, newUnit: { unitId: number; unitName: string; price: number }) => void;
   setCustomer: (id: number | null, name: string) => void;
   setDiscount: (amount: number) => void;
   setVoucher: (code: string | null) => void;
@@ -69,6 +70,21 @@ export const useOrderStore = create<OrderState>()(
                   ...i,
                   quantity: Math.max(1, quantity),
                   lineTotal: Math.max(1, quantity) * i.unitPrice,
+                }
+              : i
+          ),
+        })),
+
+      updateItemUnit: (productId, oldUnitId, newUnit) =>
+        set((state) => ({
+          cart: state.cart.map((i) =>
+            i.productId === productId && i.unitId === oldUnitId
+              ? {
+                  ...i,
+                  unitId: newUnit.unitId,
+                  unitName: newUnit.unitName,
+                  unitPrice: newUnit.price,
+                  lineTotal: i.quantity * newUnit.price,
                 }
               : i
           ),

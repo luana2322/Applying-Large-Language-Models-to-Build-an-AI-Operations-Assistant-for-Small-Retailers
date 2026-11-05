@@ -46,6 +46,11 @@ export type CustomerListItemDto = {
   status: string
   createdAt: string
   updatedAt: string
+  creditLimit?: number
+  currentDebt?: number
+  maxOverdueDays?: number
+  isExceededCredit?: boolean
+  isOverdue?: boolean
 }
 
 export type CustomerListPageDto = {

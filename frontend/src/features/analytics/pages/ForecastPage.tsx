@@ -1,6 +1,9 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { Loader2, PackageSearch } from "lucide-react"
+import { Loader2, PackageSearch, Sparkles, Send, CheckCircle2 } from "lucide-react"
+import { toast } from "sonner"
+import { useNavigate } from "react-router-dom"
+import { Button } from "@/components/ui/button"
 
 import { usePageTitle } from "@/context/PageTitleContext"
 
@@ -8,6 +11,24 @@ import { getForecast } from "../api/analyticsApi"
 import { BusinessHealthInsights } from "../components/BusinessHealthInsights"
 import { DEMO_FORECAST } from "../demoAnalyticsData"
 import type { ForecastRow } from "../types"
+
+interface SupplierGroup {
+  supplierId: number
+  supplierName: string
+  supplierPhone: string
+  totalEstimatedCost: number
+  items: {
+    productId: number
+    skuCode: string
+    productName: string
+    unit: string
+    currentStock: number
+    minStockLevel: number
+    suggestedQty: number
+    costPrice: number
+    lineTotal: number
+  }[]
+}
 
 const URGENCY: Record<ForecastRow["urgencyLevel"], { label: string; badge: string; row: string }> = {
   CRITICAL: { label: "Khẩn", badge: "bg-red-100 text-red-700 font-bold", row: "bg-red-50/40" },
@@ -18,6 +39,8 @@ const URGENCY: Record<ForecastRow["urgencyLevel"], { label: string; badge: strin
 
 export function ForecastPage() {
   const { setTitle } = usePageTitle()
+  const navigate = useNavigate()
+  const [creatingPoSupplierId, setCreatingPoSupplierId] = useState<number | null>(null)
 
   useEffect(() => {
     setTitle("Sức khỏe & Dự báo")
@@ -30,7 +53,48 @@ export function ForecastPage() {
     staleTime: 5 * 60_000,
   })
 
+  const reorderQuery = useQuery({
+    queryKey: ["analytics", "reorder-planner", "suggestions"],
+    queryFn: async () => {
+      const res = await fetch("/api/v1/inventory/reorder-planner/suggestions")
+      const json = await res.json()
+      return (json.data?.suppliers ?? []) as SupplierGroup[]
+    },
+    staleTime: 60_000,
+  })
+
   const items = (forecastQuery.data ?? DEMO_FORECAST).items
+  const suppliers = reorderQuery.data ?? []
+
+  const handleCreatePo = async (sg: SupplierGroup) => {
+    setCreatingPoSupplierId(sg.supplierId)
+    try {
+      const res = await fetch("/api/v1/inventory/reorder-planner/create-draft-po", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          supplierId: sg.supplierId,
+          totalCost: sg.totalEstimatedCost,
+          notes: `Đơn nhập AI gợi ý cho ${sg.supplierName} (${sg.items.length} mặt hàng)`
+        })
+      })
+      const data = await res.json()
+      if (data.success) {
+        toast.success(data.message, {
+          description: "Chuyển hướng đến màn hình Nhập kho để xem và hoàn thiện phiếu...",
+        })
+        setTimeout(() => {
+          navigate("/inventory/inbound")
+        }, 1200)
+      } else {
+        toast.error("Không thể tạo bản nháp đơn hàng.")
+      }
+    } catch {
+      toast.error("Lỗi kết nối khi tạo bản nháp.")
+    } finally {
+      setCreatingPoSupplierId(null)
+    }
+  }
 
   return (
     <div className="h-full space-y-6 overflow-y-auto bg-slate-50/30 p-4 md:p-6 lg:p-8">
@@ -42,6 +106,77 @@ export function ForecastPage() {
       </div>
 
       <BusinessHealthInsights />
+
+      {/* AI Smart Restock Section */}
+      <div className="rounded-2xl border border-cyan-200 bg-gradient-to-br from-cyan-50/50 via-white to-slate-50 p-6 shadow-sm">
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 mb-4">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-cyan-600 animate-pulse" />
+            <h2 className="text-base font-extrabold text-slate-900 tracking-tight">
+              AI Restock Planner · Đề xuất đơn đặt hàng theo Nhà cung cấp
+            </h2>
+          </div>
+          <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-cyan-100 text-cyan-800">
+            Tự động gom {suppliers.length} đơn nhập kho
+          </span>
+        </div>
+
+        {reorderQuery.isLoading ? (
+          <div className="flex items-center justify-center py-8 text-slate-400 gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" /> Đang tính toán tối ưu đơn nhập...
+          </div>
+        ) : suppliers.length === 0 ? (
+          <p className="text-sm text-slate-500 py-4">Tất cả các kho đều đang ở ngưỡng an toàn, chưa cần tạo đơn nhập mới.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {suppliers.map((s) => (
+              <div key={s.supplierId} className="flex flex-col justify-between p-4 rounded-xl bg-white border border-slate-200 shadow-sm hover:shadow transition-shadow">
+                <div>
+                  <div className="flex justify-between items-start gap-2">
+                    <h3 className="font-bold text-slate-900 text-sm leading-snug line-clamp-2">{s.supplierName}</h3>
+                    <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                      {s.supplierPhone}
+                    </span>
+                  </div>
+                  <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-2.5 text-xs text-slate-600">
+                    {s.items.slice(0, 3).map((item) => (
+                      <div key={item.productId} className="flex justify-between items-center">
+                        <span className="truncate max-w-[170px]">{item.productName}</span>
+                        <span className="font-bold text-slate-900 font-mono">+{item.suggestedQty} {item.unit}</span>
+                      </div>
+                    ))}
+                    {s.items.length > 3 && (
+                      <p className="text-[11px] text-cyan-700 font-medium">+ {s.items.length - 3} mặt hàng khác...</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Ước tính giá vốn</span>
+                    <span className="text-sm font-black text-rose-600">
+                      {s.totalEstimatedCost.toLocaleString()} đ
+                    </span>
+                  </div>
+                  <Button
+                    size="sm"
+                    disabled={creatingPoSupplierId === s.supplierId}
+                    onClick={() => handleCreatePo(s)}
+                    className="bg-cyan-700 hover:bg-cyan-800 text-white rounded-lg text-xs font-bold gap-1.5 shadow-sm"
+                  >
+                    {creatingPoSupplierId === s.supplierId ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Send className="h-3.5 w-3.5" />
+                    )}
+                    Tạo PO
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">

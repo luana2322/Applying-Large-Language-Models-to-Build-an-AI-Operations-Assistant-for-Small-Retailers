@@ -69,7 +69,12 @@ export function AiDebtReminderModal({ debt, isOpen, onClose }: AiDebtReminderMod
 
   const openZalo = () => {
     copyToClipboard()
-    window.open("https://chat.zalo.me", "_blank")
+    const cleanPhone = (debt.partnerPhone || "").replace(/[^0-9]/g, "")
+    if (cleanPhone && cleanPhone.length >= 9) {
+      window.open(`https://zalo.me/${cleanPhone}`, "_blank")
+    } else {
+      window.open("https://chat.zalo.me", "_blank")
+    }
   }
 
   if (!debt) return null

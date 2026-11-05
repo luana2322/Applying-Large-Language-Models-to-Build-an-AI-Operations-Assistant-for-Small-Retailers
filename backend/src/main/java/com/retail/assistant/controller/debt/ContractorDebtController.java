@@ -67,6 +67,9 @@ public class ContractorDebtController {
             item.put("debtCode", "NO-00" + r.get("id"));
             item.put("partnerType", "Customer");
             item.put("partnerName", r.get("partner_name") != null ? r.get("partner_name") : "Thợ Hoàng Văn Nam");
+            item.put("partnerPhone", r.get("partner_phone") != null ? r.get("partner_phone") : "");
+            item.put("projectName", r.get("project_name") != null ? r.get("project_name") : "");
+            item.put("overdueDays", overdue);
             item.put("customerId", r.get("customer_id"));
             item.put("totalAmount", tot);
             item.put("paidAmount", paid);

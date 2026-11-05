@@ -37,6 +37,9 @@ export interface PartnerDebt {
   partnerType: "Customer" | "Supplier"
   /** Read-model từ join KH/NCC */
   partnerName: string
+  partnerPhone?: string
+  projectName?: string
+  overdueDays?: number
   customerId?: number | null
   supplierId?: number | null
   totalAmount: number

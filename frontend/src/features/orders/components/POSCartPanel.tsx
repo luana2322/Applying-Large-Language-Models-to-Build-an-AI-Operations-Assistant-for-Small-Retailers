@@ -60,6 +60,7 @@ export function POSCartPanel() {
     cart,
     removeItem,
     updateQuantity,
+    updateItemUnit,
     getTotal,
     getFinalTotal,
     customerName,
@@ -131,13 +132,17 @@ export function POSCartPanel() {
     checkoutMutation.mutate({ paymentStatus, ...meta })
   }
 
+  const [selectedCustomerMeta, setSelectedCustomerMeta] = useState<CustomerListItemDto | null>(null)
+
   const handleSelectCustomer = (customer: CustomerListItemDto) => {
     setCustomer(customer.id, customer.name)
+    setSelectedCustomerMeta(customer)
     toast.success(`Đã chọn ${customer.name}`)
   }
 
   const handleSelectWalkInCustomer = () => {
     setCustomer(null, "Khách lẻ")
+    setSelectedCustomerMeta(null)
     toast.success("Đã chọn Khách lẻ")
   }
 
@@ -252,7 +257,14 @@ export function POSCartPanel() {
             </div>
             <div>
               <p className="text-[10px] uppercase font-bold text-slate-400 leading-none tracking-wider">Khách hàng</p>
-              <p className="text-sm font-semibold text-slate-900 mt-0.5">{customerName}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-semibold text-slate-900 mt-0.5">{customerName}</p>
+                {selectedCustomerMeta?.isExceededCredit && (
+                  <span className="px-1.5 py-0.2 rounded bg-rose-100 text-rose-700 text-[9px] font-black uppercase">
+                    Vượt trần nợ
+                  </span>
+                )}
+              </div>
             </div>
           </div>
           <Button
@@ -265,6 +277,16 @@ export function POSCartPanel() {
             Thay đổi
           </Button>
         </div>
+        {selectedCustomerMeta && (selectedCustomerMeta.isExceededCredit || selectedCustomerMeta.isOverdue) && (
+          <div className="mt-2 p-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-[11px] leading-tight flex items-start gap-1.5">
+            <span className="font-black text-rose-600">⚠️ CẢNH BÁO:</span>
+            <span>
+              {selectedCustomerMeta.isExceededCredit
+                ? `Đang nợ ${Number(selectedCustomerMeta.currentDebt).toLocaleString()}đ (vượt hạn mức ${(Number(selectedCustomerMeta.creditLimit) / 1000000).toFixed(0)}Tr). Vui lòng yêu cầu thanh toán trước!`
+                : `Có khoản nợ quá hạn ${selectedCustomerMeta.maxOverdueDays} ngày chưa thanh toán.`}
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
@@ -279,10 +301,34 @@ export function POSCartPanel() {
               <div className="flex justify-between items-start">
                 <div className="flex-1 min-w-0 pr-5">
                   <h4 className="text-sm font-semibold text-slate-900 line-clamp-1 leading-tight">{item.productName}</h4>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {item.skuCode}
-                    {item.unitName ? ` · ${item.unitName}` : ""}
-                  </p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-xs text-slate-400 font-mono">{item.skuCode}</span>
+                    {item.availableUnits && item.availableUnits.length > 1 ? (
+                      <select
+                        value={item.unitId}
+                        disabled={pending}
+                        onChange={(e) => {
+                          const targetUnit = item.availableUnits?.find((u) => u.unitId === Number(e.target.value))
+                          if (targetUnit) {
+                            updateItemUnit(item.productId, item.unitId, {
+                              unitId: targetUnit.unitId,
+                              unitName: targetUnit.unitName,
+                              price: targetUnit.price,
+                            })
+                          }
+                        }}
+                        className="text-[11px] font-bold text-cyan-700 bg-cyan-50 border border-cyan-200 rounded px-1.5 py-0.5 focus:outline-none cursor-pointer"
+                      >
+                        {item.availableUnits.map((u) => (
+                          <option key={u.unitId} value={u.unitId}>
+                            {u.unitName} ({formatCurrency(u.price)})
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="text-xs text-slate-600 font-medium">· {item.unitName}</span>
+                    )}
+                  </div>
                 </div>
                 <button
                   type="button"
