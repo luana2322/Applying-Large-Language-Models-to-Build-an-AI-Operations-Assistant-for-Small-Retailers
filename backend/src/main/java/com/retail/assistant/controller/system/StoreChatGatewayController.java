@@ -53,7 +53,58 @@ public class StoreChatGatewayController {
         ));
     }
 
-    @PostMapping({"/chat", "/ai/chat/stream"})
+    @PostMapping(value = "/ai/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter streamChatWithAi(
+        @RequestHeader(value = "X-Store-Code", defaultValue = "STORE-001") String storeCode,
+        @RequestBody Map<String, Object> clientRequest
+    ) {
+        var emitter = new org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter(60000L);
+
+        new Thread(() -> {
+            try {
+                Store store = storeRepository.findByCode(storeCode)
+                    .orElseGet(() -> storeRepository.findAll().stream().findFirst().orElse(null));
+
+                Long storeId = store != null ? store.getId() : 1L;
+
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_JSON);
+                headers.set("X-Internal-Token", internalAuthToken);
+                headers.set("X-Store-Id", String.valueOf(storeId));
+
+                HttpEntity<Map<String, Object>> entity = new HttpEntity<>(clientRequest, headers);
+                String targetUrl = aiServiceUrl + "/internal/v1/ai/chat";
+
+                emitter.send("event: progress\ndata: {\"type\":\"tool_call\",\"tool\":\"query_db\",\"step\":1,\"message\":\"Đang kết nối AI và phân tích dữ liệu...\"}\n\n");
+
+                ResponseEntity<String> response = restTemplate.postForEntity(targetUrl, entity, String.class);
+                String body = response.getBody();
+
+                if (body != null) {
+                    JsonNode node = objectMapper.readTree(body);
+                    String answer = node.path("answer").asText("");
+                    emitter.send("event: delta_full\ndata: " + answer + "\n\n");
+                    if (store != null) {
+                        persistTurnBestEffort(store, clientRequest, body);
+                    }
+                }
+
+                emitter.send("event: done\ndata: {}\n\n");
+                emitter.complete();
+
+            } catch (Exception e) {
+                logger.error("SSE stream error: ", e);
+                try {
+                    emitter.send("event: error\ndata: " + e.getMessage() + "\n\n");
+                    emitter.complete();
+                } catch (Exception ignored) {}
+            }
+        }).start();
+
+        return emitter;
+    }
+
+    @PostMapping("/chat")
     public ResponseEntity<?> chatWithAi(
         @RequestHeader(value = "X-Store-Code", defaultValue = "STORE-001") String storeCode,
         @RequestBody Map<String, Object> clientRequest
