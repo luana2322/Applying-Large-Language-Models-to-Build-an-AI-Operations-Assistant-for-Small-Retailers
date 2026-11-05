@@ -121,14 +121,22 @@ class HybridIntentRouter:
                 "lookback_days": 30
             })
 
-        # 6. Hàng bán chậm / Tồn đọng
-        slow_moving_keywords = ["bán chậm", "tồn đọng", "ế", "ít người mua", "chậm bán"]
+        # 6. Hàng bán chậm / Tồn đọng (chỉ kích hoạt khi rõ ràng hỏi về ế / bán chậm)
+        slow_moving_keywords = ["hàng bán chậm", "sản phẩm bán chậm", "tồn đọng lâu ngày", "hàng ế", "chậm bán"]
         if any(kw in msg for kw in slow_moving_keywords):
             return ("get_slow_moving_products", {
-                "lookback_days": 60
+                "lookback_days": 60,
+                "min_stock_quantity": 5,
+                "max_sales_quantity": 2
             })
 
-        # 7. Xử lý câu trả lời cộc lốc hoặc số nối tiếp (Contextual Follow-up)
+        # 7. Tư vấn chọn thiết bị / mua đồ công trình / combo vật tư văn phòng / nhà bếp / nhà tắm
+        consult_keywords = ["mua đồ", "tư vấn", "cần mua", "văn phòng", "nhà bếp", "bếp", "nhà tắm", "phòng tắm", "combo", "lắp đặt"]
+        if any(kw in msg for kw in consult_keywords):
+            # Không route vào báo cáo tài chính/kho, để LLM chuyên gia trả lời tư vấn giải pháp
+            return None
+
+        # 8. Xử lý câu trả lời cộc lốc hoặc số nối tiếp (Contextual Follow-up)
         # Ví dụ người dùng gõ: "4", "top 5", "tiếp", "nữa đi"
         if re.match(r"^\d+$", msg):
             num = int(msg)
@@ -143,3 +151,4 @@ class HybridIntentRouter:
         return None
 
 intent_router = HybridIntentRouter()
+

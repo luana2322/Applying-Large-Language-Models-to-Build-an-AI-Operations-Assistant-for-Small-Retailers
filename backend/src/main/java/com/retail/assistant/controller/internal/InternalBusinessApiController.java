@@ -128,9 +128,9 @@ public class InternalBusinessApiController {
         @RequestBody(required = false) SlowMovingRequest req
     ) {
         Long storeId = validateAuthAndStore(token, storeIdHeader);
-        Integer lookback = req != null ? req.lookback_days() : 30;
-        Integer minStock = req != null ? req.min_stock_quantity() : 5;
-        Integer maxSales = req != null ? req.max_sales_quantity() : 2;
+        Integer lookback = (req != null && req.lookback_days() != null) ? req.lookback_days() : 30;
+        Integer minStock = (req != null && req.min_stock_quantity() != null) ? req.min_stock_quantity() : 5;
+        Integer maxSales = (req != null && req.max_sales_quantity() != null) ? req.max_sales_quantity() : 2;
 
         var data = inventoryService.getSlowMovingProducts(storeId, lookback, minStock, maxSales);
         return ResponseEntity.ok(ToolResponse.ok(storeId, data, true));
