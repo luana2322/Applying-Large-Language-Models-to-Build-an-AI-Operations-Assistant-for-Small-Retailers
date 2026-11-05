@@ -1,6 +1,6 @@
 # Modelfile - Custom Retail Assistant for Electrical & Sanitary Ware Store
 # Đề tài: Applying Large Language Models to Build an AI Operations Assistant for Small Retailers
-FROM qwen2.5:7b
+FROM qwen2.5:3b
 
 # Hyperparameters tối ưu cho trợ lý điều hành kinh doanh & Tool Calling
 PARAMETER temperature 0.2
@@ -8,7 +8,7 @@ PARAMETER top_p 0.85
 PARAMETER top_k 40
 PARAMETER repeat_penalty 1.15
 PARAMETER num_ctx 4096
-PARAMETER num_predict 350
+PARAMETER num_predict 256
 
 # System Prompt định danh & chuyên môn ngành Vật tư Điện nước - Thiết bị vệ sinh
 SYSTEM """
