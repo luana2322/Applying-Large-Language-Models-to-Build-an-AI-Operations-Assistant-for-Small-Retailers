@@ -410,9 +410,10 @@ class GeminiLLMAdapter(BaseLLMAdapter):
 
 
 class OpenAILLMAdapter(BaseLLMAdapter):
-    def __init__(self, api_key: str, model_name: str = "gpt-4o-mini"):
+    def __init__(self, api_key: str, model_name: str = "gpt-4o-mini", base_url: Optional[str] = None):
         self.api_key = api_key
         self.model_name = model_name
+        self.base_url = base_url
 
     @staticmethod
     def _to_openai_tools(tool_declarations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -446,7 +447,13 @@ class OpenAILLMAdapter(BaseLLMAdapter):
     async def generate(self, system_instruction: str, history: List[Dict[str, Any]], message: str, tool_declarations: List[Dict[str, Any]]) -> LLMResponse:
         from openai import AsyncOpenAI
         try:
-            client = AsyncOpenAI(api_key=self.api_key, timeout=settings.llm_timeout_seconds)
+            client_kwargs: Dict[str, Any] = {
+                "api_key": self.api_key or "ollama",
+                "timeout": settings.llm_timeout_seconds,
+            }
+            if self.base_url:
+                client_kwargs["base_url"] = self.base_url
+            client = AsyncOpenAI(**client_kwargs)
             kwargs: Dict[str, Any] = {
                 "model": self.model_name,
                 "messages": _to_provider_messages(system_instruction, history, message),

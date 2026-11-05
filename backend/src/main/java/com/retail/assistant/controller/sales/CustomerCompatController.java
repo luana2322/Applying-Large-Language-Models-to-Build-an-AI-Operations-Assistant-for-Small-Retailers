@@ -92,3 +92,4 @@ public class CustomerCompatController {
         return ResponseEntity.ok(Map.of("success", true, "data", data));
     }
 }
+

@@ -11,7 +11,9 @@ class Settings(BaseModel):
     business_api_base_url: str = os.getenv("BUSINESS_API_BASE_URL", "http://localhost:8080/internal/api/v1/business")
     
     # LLM Settings
-    llm_provider: str = os.getenv("LLM_PROVIDER", "gemini") # gemini | openai | mock
+    llm_provider: str = os.getenv("LLM_PROVIDER", "ollama") # ollama | gemini | openai | mock
+    ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434/v1")
+    ollama_model: str = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
     gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
