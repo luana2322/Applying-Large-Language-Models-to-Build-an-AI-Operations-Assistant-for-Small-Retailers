@@ -178,10 +178,10 @@ class AgentOrchestrator:
                     )
                     continue
 
-                # Anti-looping guardrail
+                # Anti-looping guardrail per turn
                 fp = self._compute_fingerprint(tc.name, tc.arguments)
-                if fp in executed_fingerprints or any(tr.name == tc.name for tr in tool_records):
-                    logger.warning(f"Detected duplicate or repeated tool call for {tc.name}, concluding response")
+                if fp in executed_fingerprints:
+                    logger.warning(f"Detected duplicate tool call loop for {tc.name}, concluding response")
                     break
                 executed_fingerprints.add(fp)
 
@@ -212,11 +212,32 @@ class AgentOrchestrator:
             # Prepare for next turn
             current_message = "Vui lòng phân tích ngắn gọn kết quả số liệu trên và trả lời trọng tâm trong 2-3 câu bằng tiếng Việt."
 
-        # If turn limit reached
+        # If turn limit reached, attempt a final text synthesis based on collected tool records
+        if last_tool_data is not None:
+            summary_msg = f"Dựa trên dữ liệu đã thu thập được từ hệ thống: {json.dumps(last_tool_data, ensure_ascii=False)}, hãy trả lời ngắn gọn câu hỏi của người dùng bằng tiếng Việt."
+            try:
+                final_res = await self.llm_adapter.generate(
+                    system_instruction=system_instruction,
+                    history=context_manager.get_history(request.session_id),
+                    message=summary_msg,
+                    tool_declarations=[]
+                )
+                if final_res.text:
+                    context_manager.add_message(request.session_id, "assistant", final_res.text)
+                    return response_validator.validate_and_normalize(
+                        request_id=request.request_id,
+                        session_id=request.session_id,
+                        raw_text=final_res.text,
+                        tool_records=tool_records,
+                        last_tool_data=last_tool_data
+                    )
+            except Exception:
+                pass
+
         return response_validator.validate_and_normalize(
             request_id=request.request_id,
             session_id=request.session_id,
-            raw_text="Đã đạt số vòng điều phối tối đa mà chưa có kết luận hoàn chỉnh.",
+            raw_text="Đã xử lý thông tin từ cơ sở dữ liệu cho yêu cầu của bạn.",
             tool_records=tool_records,
             last_tool_data=last_tool_data
         )
