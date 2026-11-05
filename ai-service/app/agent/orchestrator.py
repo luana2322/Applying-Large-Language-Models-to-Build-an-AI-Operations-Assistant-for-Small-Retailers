@@ -180,14 +180,8 @@ class AgentOrchestrator:
 
                 # Anti-looping guardrail
                 fp = self._compute_fingerprint(tc.name, tc.arguments)
-                if fp in executed_fingerprints:
-                    logger.warning(f"Detected duplicate tool call loop for {tc.name}")
-                    tool_records.append(ToolCallRecord(
-                        name=tc.name,
-                        arguments=tc.arguments,
-                        status="rejected",
-                        error="Phát hiện vòng lặp gọi lại cùng tham số."
-                    ))
+                if fp in executed_fingerprints or any(tr.name == tc.name for tr in tool_records):
+                    logger.warning(f"Detected duplicate or repeated tool call for {tc.name}, concluding response")
                     break
                 executed_fingerprints.add(fp)
 

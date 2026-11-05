@@ -1007,4 +1007,44 @@ INSERT INTO service_bookings (id, booking_code, customer_id, pet_id, staff_id, s
 (1, 'BK-2026-001', 2, 1, 1, NOW() + INTERVAL '1 hour', 'CONFIRMED', 180000.00, 'Bé hơi nhát nước, cần tắm nhẹ tay', NOW(), NOW()),
 (2, 'BK-2026-002', 3, 2, 1, NOW() + INTERVAL '3 hours', 'CONFIRMED', 250000.00, 'Cắt ngắn phần chân và tỉa tròn mặt', NOW(), NOW())
 ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status;
-SELECT setval('service_bookings_id_seq', 2);
+-- 22. COMPATIBILITY VIEWS FOR AI & ANALYTICS
+CREATE OR REPLACE VIEW orders AS
+SELECT
+    so.id,
+    so.order_code,
+    so.store_id,
+    so.customer_id,
+    so.user_id,
+    so.total_amount,
+    so.discount_amount,
+    so.final_amount,
+    so.status,
+    so.payment_method,
+    so.created_at,
+    so.updated_at
+FROM sale_orders so;
+
+CREATE OR REPLACE VIEW order_items AS
+SELECT
+    od.id,
+    od.order_id,
+    od.product_id,
+    CAST(od.quantity AS INTEGER) AS quantity,
+    CAST(od.price_at_time AS DOUBLE PRECISION) AS unit_price,
+    CAST(COALESCE(p.cost_price, od.price_at_time * 0.7) AS DOUBLE PRECISION) AS cost_price,
+    CAST(od.line_total AS DOUBLE PRECISION) AS subtotal
+FROM order_detail od
+LEFT JOIN products p ON od.product_id = p.id;
+
+CREATE OR REPLACE VIEW inventory_records AS
+SELECT
+    i.id,
+    i.product_id,
+    i.location_id,
+    i.quantity,
+    i.min_stock_level,
+    i.max_stock_level,
+    i.created_at,
+    i.updated_at
+FROM inventory i;
+
