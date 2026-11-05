@@ -50,7 +50,7 @@ services:
       BUSINESS_API_BASE_URL: http://backend:8080/internal/api/v1/business
       LLM_PROVIDER: ollama
       OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
-      OLLAMA_MODEL: qwen2.5:7b
+      OLLAMA_MODEL: retail-assistant:latest
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
