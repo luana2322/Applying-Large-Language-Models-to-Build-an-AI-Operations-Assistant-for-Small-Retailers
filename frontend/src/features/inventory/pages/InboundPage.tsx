@@ -205,16 +205,16 @@ export function InboundPage() {
         return
       }
       if (error.status === 401 || error.status === 403) {
-        toast.error(error.body?.message ?? "Bạn chưa đủ quyền xem thông tin này.")
+        toast.error(error.body?.message || "Bạn chưa đủ quyền xem thông tin này.")
       } else {
-        toast.error(error.body?.message ?? "Không tải được danh sách phiếu nhập")
+        toast.error(error.body?.message || "Không tải được danh sách phiếu nhập")
       }
     }
   }, [isError, error])
 
   useEffect(() => {
     if (isDetailError && detailError instanceof ApiRequestError) {
-      toast.error(detailError.body?.message ?? "Không tải được chi tiết phiếu nhập")
+      toast.error(detailError.body?.message || "Không tải được chi tiết phiếu nhập")
     }
   }, [isDetailError, detailError])
 

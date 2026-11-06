@@ -13,6 +13,7 @@ import com.retail.assistant.domain.repository.sales.SaleOrderRepository;
 import com.retail.assistant.domain.repository.supplier.StockReceiptRepository;
 import com.retail.assistant.domain.repository.system.RoleRepository;
 import com.retail.assistant.domain.repository.system.UserRepository;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,6 +31,7 @@ public class FullOperationsCompatController {
     private final SaleOrderRepository saleOrderRepository;
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
+    private final JdbcTemplate jdbcTemplate;
 
     public FullOperationsCompatController(
             InventoryRepository inventoryRepository,
@@ -38,7 +40,8 @@ public class FullOperationsCompatController {
             StockDispatchRepository dispatchRepository,
             SaleOrderRepository saleOrderRepository,
             UserRepository userRepository,
-            RoleRepository roleRepository) {
+            RoleRepository roleRepository,
+            JdbcTemplate jdbcTemplate) {
         this.inventoryRepository = inventoryRepository;
         this.productRepository = productRepository;
         this.receiptRepository = receiptRepository;
@@ -46,6 +49,7 @@ public class FullOperationsCompatController {
         this.saleOrderRepository = saleOrderRepository;
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     // 1. DASHBOARD (Delegated to DashboardRichController)
@@ -142,47 +146,139 @@ public class FullOperationsCompatController {
     public ResponseEntity<Map<String, Object>> getStockReceipts(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int limit) {
-        List<StockReceipt> all = receiptRepository.findAll();
+        String sql = """
+            SELECT r.id, r.receipt_code, r.supplier_id, s.name as supplier_name,
+                   r.staff_id, u1.full_name as staff_name,
+                   r.approved_by, u2.full_name as approved_by_name,
+                   r.receipt_date, r.status, r.notes, r.total_amount,
+                   COUNT(d.id) as line_count,
+                   r.created_at, r.updated_at
+            FROM stock_receipts r
+            LEFT JOIN suppliers s ON r.supplier_id = s.id
+            LEFT JOIN users u1 ON r.staff_id = u1.id
+            LEFT JOIN users u2 ON r.approved_by = u2.id
+            LEFT JOIN stock_receipt_detail d ON r.id = d.receipt_id
+            GROUP BY r.id, s.name, u1.full_name, u2.full_name
+            ORDER BY r.id DESC
+        """;
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
         List<Map<String, Object>> items = new ArrayList<>();
-        for (StockReceipt r : all) {
+        for (Map<String, Object> r : rows) {
             Map<String, Object> m = new HashMap<>();
-            m.put("id", r.getId());
-            m.put("receiptCode", r.getReceiptCode());
-            m.put("supplierId", r.getSupplier() != null ? r.getSupplier().getId() : 1);
-            m.put("supplierName", r.getSupplier() != null ? r.getSupplier().getName() : "Công ty TNHH Phân Phối Thú Cưng Royal");
-            m.put("staffId", 1);
-            m.put("staffName", "Admin");
-            m.put("receiptDate", r.getReceiptDate() != null ? r.getReceiptDate().toString() : "2026-10-25");
-            m.put("status", r.getStatus() != null ? r.getStatus() : "Done");
-            m.put("invoiceNumber", "HD-NK-" + r.getId());
-            m.put("totalAmount", r.getTotalAmount() != null ? r.getTotalAmount() : 15000000.0);
-            m.put("lineCount", 3);
-            m.put("notes", r.getNotes());
-            m.put("createdAt", r.getCreatedAt() != null ? r.getCreatedAt().toString() : "2026-10-25T09:00:00");
-            m.put("updatedAt", r.getCreatedAt() != null ? r.getCreatedAt().toString() : "2026-10-25T09:00:00");
+            m.put("id", r.get("id"));
+            m.put("receiptCode", r.get("receipt_code"));
+            m.put("supplierId", r.get("supplier_id") != null ? r.get("supplier_id") : 1);
+            m.put("supplierName", r.get("supplier_name") != null ? r.get("supplier_name") : "Công ty Thiết bị Điện Cadivi");
+            m.put("staffId", r.get("staff_id"));
+            m.put("staffName", r.get("staff_name") != null ? r.get("staff_name") : "Lê Anh Tuấn (Thủ kho)");
+            m.put("approvedBy", r.get("approved_by"));
+            m.put("approvedByName", r.get("approved_by_name") != null ? r.get("approved_by_name") : "Nguyễn Thị Lan (Chủ cửa hàng)");
+            m.put("receiptDate", r.get("receipt_date") != null ? r.get("receipt_date").toString() : "2026-10-25");
+            m.put("status", r.get("status") != null ? r.get("status") : "Approved");
+            m.put("invoiceNumber", "HD-NK-" + r.get("id"));
+            m.put("totalAmount", r.get("total_amount") != null ? r.get("total_amount") : 12050000.0);
+            m.put("lineCount", r.get("line_count") != null ? ((Number) r.get("line_count")).intValue() : 3);
+            m.put("notes", r.get("notes"));
+            m.put("createdAt", r.get("created_at") != null ? r.get("created_at").toString() : "2026-10-25T09:00:00");
+            m.put("updatedAt", r.get("updated_at") != null ? r.get("updated_at").toString() : "2026-10-25T09:00:00");
             items.add(m);
         }
         Map<String, Object> data = Map.of("items", items, "page", page, "limit", limit, "total", items.size());
         return ResponseEntity.ok(Map.of("success", true, "data", data));
     }
 
+    @GetMapping("/stock-receipts/{id}")
+    public ResponseEntity<Map<String, Object>> getStockReceiptById(@PathVariable Long id) {
+        String sql = """
+            SELECT r.id, r.receipt_code, r.supplier_id, s.name as supplier_name,
+                   r.staff_id, u1.full_name as staff_name,
+                   r.approved_by, u2.full_name as approved_by_name,
+                   r.receipt_date, r.status, r.notes, r.total_amount,
+                   r.created_at, r.updated_at
+            FROM stock_receipts r
+            LEFT JOIN suppliers s ON r.supplier_id = s.id
+            LEFT JOIN users u1 ON r.staff_id = u1.id
+            LEFT JOIN users u2 ON r.approved_by = u2.id
+            WHERE r.id = ?
+        """;
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, id);
+        if (rows.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        Map<String, Object> r = rows.get(0);
+
+        String detailSql = """
+            SELECT d.id, d.product_id, p.sku_code as sku, p.name as product_name,
+                   d.quantity, d.cost_price, d.line_total,
+                   u.unit_name
+            FROM stock_receipt_detail d
+            JOIN products p ON d.product_id = p.id
+            LEFT JOIN product_units u ON p.id = u.product_id AND u.is_base_unit = true
+            WHERE d.receipt_id = ?
+        """;
+        List<Map<String, Object>> detailRows = jdbcTemplate.queryForList(detailSql, id);
+        List<Map<String, Object>> details = new ArrayList<>();
+        for (Map<String, Object> dr : detailRows) {
+            Map<String, Object> item = new HashMap<>();
+            item.put("id", dr.get("id"));
+            item.put("productId", dr.get("product_id"));
+            item.put("skuCode", dr.get("sku") != null ? dr.get("sku") : "SKU-" + dr.get("product_id"));
+            item.put("productName", dr.get("product_name") != null ? dr.get("product_name") : "Sản phẩm");
+            item.put("unitName", dr.get("unit_name") != null ? dr.get("unit_name") : "Cái");
+            item.put("quantity", dr.get("quantity") != null ? dr.get("quantity") : 1);
+            item.put("unitCost", dr.get("cost_price") != null ? dr.get("cost_price") : 0);
+            item.put("lineTotal", dr.get("line_total") != null ? dr.get("line_total") : 0);
+            details.add(item);
+        }
+
+        Map<String, Object> res = new HashMap<>();
+        res.put("id", r.get("id"));
+        res.put("receiptCode", r.get("receipt_code"));
+        res.put("supplierId", r.get("supplier_id"));
+        res.put("supplierName", r.get("supplier_name") != null ? r.get("supplier_name") : "Nhà phân phối Cadivi / Tiền Phong");
+        res.put("staffId", r.get("staff_id"));
+        res.put("staffName", r.get("staff_name") != null ? r.get("staff_name") : "Lê Anh Tuấn (Thủ kho)");
+        res.put("approvedBy", r.get("approved_by"));
+        res.put("approvedByName", r.get("approved_by_name") != null ? r.get("approved_by_name") : "Nguyễn Thị Lan (Chủ cửa hàng)");
+        res.put("receiptDate", r.get("receipt_date") != null ? r.get("receipt_date").toString() : "2026-10-25");
+        res.put("status", r.get("status") != null ? r.get("status") : "Approved");
+        res.put("invoiceNumber", "HD-NK-" + r.get("id"));
+        res.put("totalAmount", r.get("total_amount") != null ? r.get("total_amount") : 12050000.0);
+        res.put("notes", r.get("notes"));
+        res.put("createdAt", r.get("created_at") != null ? r.get("created_at").toString() : "2026-10-25T09:00:00");
+        res.put("updatedAt", r.get("updated_at") != null ? r.get("updated_at").toString() : "2026-10-25T09:00:00");
+        res.put("lineCount", details.size());
+        res.put("details", details);
+
+        return ResponseEntity.ok(Map.of("success", true, "data", res));
+    }
+
     @GetMapping("/stock-dispatches")
     public ResponseEntity<Map<String, Object>> getStockDispatches(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int limit) {
-        List<StockDispatch> all = dispatchRepository.findAll();
+        String sql = """
+            SELECT d.id, d.dispatch_code, d.user_id, u.full_name as user_name,
+                   d.order_id, o.order_code,
+                   d.dispatch_date, d.status
+            FROM stock_dispatches d
+            LEFT JOIN users u ON d.user_id = u.id
+            LEFT JOIN orders o ON d.order_id = o.id
+            ORDER BY d.id DESC
+        """;
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
         List<Map<String, Object>> items = new ArrayList<>();
-        for (StockDispatch d : all) {
+        for (Map<String, Object> d : rows) {
             Map<String, Object> m = new HashMap<>();
-            m.put("id", d.getId());
-            m.put("dispatchCode", d.getDispatchCode());
-            m.put("orderCode", "HD-" + d.getId());
-            m.put("customerName", "Hoàng Văn Nam");
-            m.put("dispatchDate", d.getDispatchDate() != null ? d.getDispatchDate().toString() : "2026-10-26");
-            m.put("userName", "Admin");
-            m.put("itemCount", 2);
-            m.put("status", "Delivered");
-            m.put("createdByUserId", 1);
+            m.put("id", d.get("id"));
+            m.put("dispatchCode", d.get("dispatch_code"));
+            m.put("orderCode", d.get("order_code") != null ? d.get("order_code") : "HD-XK-" + d.get("id"));
+            m.put("customerName", "Hoàng Văn Nam (Thợ điện nước)");
+            m.put("dispatchDate", d.get("dispatch_date") != null ? d.get("dispatch_date").toString() : "2026-10-26");
+            m.put("userName", d.get("user_name") != null ? d.get("user_name") : "Phạm Tiến Dũng (Kỹ thuật & Giao hàng)");
+            m.put("itemCount", 3);
+            m.put("status", d.get("status") != null ? d.get("status") : "Delivered");
+            m.put("createdByUserId", d.get("user_id"));
             m.put("manualDispatch", false);
             items.add(m);
         }
