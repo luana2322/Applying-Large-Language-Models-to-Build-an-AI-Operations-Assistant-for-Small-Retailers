@@ -212,15 +212,15 @@ export function DebtPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 flex flex-col h-full min-h-0 gap-4 md:gap-5 overflow-hidden">
+    <div className="p-3 sm:p-4 md:p-6 lg:p-8 flex flex-col h-full min-h-0 gap-3 md:gap-5 overflow-y-auto lg:overflow-hidden">
       {/* Header & Stats Cards */}
-      <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-6 shrink-0">
+      <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-4 sm:gap-6 shrink-0">
         <div>
           <h1 className="text-xl md:text-2xl font-semibold text-slate-900 tracking-tight">Sổ nợ đối tác</h1>
           <p className="text-sm text-slate-500 mt-1 font-medium">Theo dõi công nợ khách hàng và nhà cung cấp</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap items-center gap-3 sm:gap-4">
             <StatCard 
                 label="Phải thu (trang này)" 
                 amount={totalReceivable} 

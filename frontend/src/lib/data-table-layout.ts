@@ -11,9 +11,9 @@ export const DATA_TABLE_ROOT_CLASS =
 export const DATA_TABLE_SHELL_CLASS =
   "flex-1 flex flex-col min-h-0 bg-white border border-slate-200/60 rounded-xl overflow-hidden shadow-md"
 
-/** Vùng cuộn bảng (1 vùng cuộn cho thead sticky + tbody). */
+/** Vùng cuộn bảng (1 vùng cuộn cho thead sticky + tbody, hỗ trợ cuộn ngang linh hoạt trên mobile/tablet). */
 export const DATA_TABLE_SCROLL_CLASS =
-  "flex-1 overflow-y-auto relative scroll-smooth [scrollbar-gutter:stable] min-h-0"
+  "flex-1 overflow-y-auto overflow-x-auto relative scroll-smooth [scrollbar-gutter:stable] min-h-0 w-full"
 
 /**
  * Cột NV / Thao tác: tối thiểu ~168px để vừa 3 nút `size="icon"` h-8 w-8 + gap-1 + padding cell.

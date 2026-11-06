@@ -342,22 +342,22 @@ export function TransactionsPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 flex flex-col h-full min-h-0 gap-4 md:gap-5 overflow-hidden">
-      <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-6">
+    <div className="p-3 sm:p-4 md:p-6 lg:p-8 flex flex-col h-full min-h-0 gap-3 md:gap-5 overflow-y-auto lg:overflow-hidden">
+      <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-4 sm:gap-6">
         <div>
           <h1 className="text-xl md:text-2xl font-semibold text-slate-900 tracking-tight">Giao dịch thu chi</h1>
           <p className="text-sm text-slate-500 mt-1 font-medium">Quản lý thu chi và luân chuyển tiền mặt</p>
         </div>
 
         <div className="flex flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap items-center gap-3 sm:gap-4">
             <StatCard label="Thu (trang này)" amount={totalIncome} icon={TrendingUp} />
             <StatCard label="Chi (trang này)" amount={totalExpense} icon={TrendingDown} />
             <StatCard label="Chênh lệch (trang này)" amount={balance} icon={DollarSign} />
             <Button
               type="button"
               variant="outline"
-              className="h-auto px-5 py-3 rounded-xl border-slate-200 font-semibold text-slate-700"
+              className="h-auto px-5 py-3 rounded-xl border-slate-200 font-semibold text-slate-700 w-full sm:w-auto"
               onClick={() => setIsCloseDayOpen(true)}
             >
               <CheckCircle2 className="mr-2" size={16} /> Chốt ngày
