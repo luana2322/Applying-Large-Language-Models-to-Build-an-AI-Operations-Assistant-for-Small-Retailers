@@ -69,12 +69,14 @@ public class FullOperationsCompatController {
 
         for (Inventory inv : all) {
             var prod = inv.getProduct();
-            if (prod == null) continue;
+            if (prod == null)
+                continue;
             if (search != null && !search.isBlank()) {
                 String q = search.toLowerCase();
                 boolean match = (prod.getName() != null && prod.getName().toLowerCase().contains(q)) ||
-                                (prod.getSku() != null && prod.getSku().toLowerCase().contains(q));
-                if (!match) continue;
+                        (prod.getSku() != null && prod.getSku().toLowerCase().contains(q));
+                if (!match)
+                    continue;
             }
 
             int qty = inv.getQuantity() != null ? inv.getQuantity().intValue() : 0;
@@ -84,7 +86,8 @@ public class FullOperationsCompatController {
             totalVal += val;
 
             boolean isLow = qty <= minQty;
-            if (isLow) lowCount++;
+            if (isLow)
+                lowCount++;
 
             Map<String, Object> m = new HashMap<>();
             m.put("id", inv.getId());
@@ -117,8 +120,7 @@ public class FullOperationsCompatController {
                 "totalSkus", items.size(),
                 "totalValue", totalVal,
                 "lowStockCount", lowCount,
-                "expiringSoonCount", expiringCount
-        );
+                "expiringSoonCount", expiringCount);
 
         Map<String, Object> data = new HashMap<>();
         data.put("items", items);
@@ -136,8 +138,7 @@ public class FullOperationsCompatController {
                 "totalSkus", 8,
                 "totalValue", 28500000.0,
                 "lowStockCount", 2,
-                "expiringSoonCount", 1
-        );
+                "expiringSoonCount", 1);
         return ResponseEntity.ok(Map.of("success", true, "data", summary));
     }
 
@@ -147,20 +148,20 @@ public class FullOperationsCompatController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int limit) {
         String sql = """
-            SELECT r.id, r.receipt_code, r.supplier_id, s.name as supplier_name,
-                   r.staff_id, u1.full_name as staff_name,
-                   r.approved_by, u2.full_name as approved_by_name,
-                   r.receipt_date, r.status, r.notes, r.total_amount,
-                   COUNT(d.id) as line_count,
-                   r.created_at, r.updated_at
-            FROM stock_receipts r
-            LEFT JOIN suppliers s ON r.supplier_id = s.id
-            LEFT JOIN users u1 ON r.staff_id = u1.id
-            LEFT JOIN users u2 ON r.approved_by = u2.id
-            LEFT JOIN stock_receipt_detail d ON r.id = d.receipt_id
-            GROUP BY r.id, s.name, u1.full_name, u2.full_name
-            ORDER BY r.id DESC
-        """;
+                    SELECT r.id, r.receipt_code, r.supplier_id, s.name as supplier_name,
+                           r.staff_id, u1.full_name as staff_name,
+                           r.approved_by, u2.full_name as approved_by_name,
+                           r.receipt_date, r.status, r.notes, r.total_amount,
+                           COUNT(d.id) as line_count,
+                           r.created_at, r.updated_at
+                    FROM stock_receipts r
+                    LEFT JOIN suppliers s ON r.supplier_id = s.id
+                    LEFT JOIN users u1 ON r.staff_id = u1.id
+                    LEFT JOIN users u2 ON r.approved_by = u2.id
+                    LEFT JOIN stock_receipt_detail d ON r.id = d.receipt_id
+                    GROUP BY r.id, s.name, u1.full_name, u2.full_name
+                    ORDER BY r.id DESC
+                """;
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
         List<Map<String, Object>> items = new ArrayList<>();
         for (Map<String, Object> r : rows) {
@@ -168,11 +169,13 @@ public class FullOperationsCompatController {
             m.put("id", r.get("id"));
             m.put("receiptCode", r.get("receipt_code"));
             m.put("supplierId", r.get("supplier_id") != null ? r.get("supplier_id") : 1);
-            m.put("supplierName", r.get("supplier_name") != null ? r.get("supplier_name") : "Công ty Thiết bị Điện Cadivi");
+            m.put("supplierName",
+                    r.get("supplier_name") != null ? r.get("supplier_name") : "Công ty Thiết bị Điện Cadivi");
             m.put("staffId", r.get("staff_id"));
             m.put("staffName", r.get("staff_name") != null ? r.get("staff_name") : "Trần Văn Minh (Nhân viên)");
             m.put("approvedBy", r.get("approved_by"));
-            m.put("approvedByName", r.get("approved_by_name") != null ? r.get("approved_by_name") : "Nguyễn Thị Lan (Chủ cửa hàng)");
+            m.put("approvedByName",
+                    r.get("approved_by_name") != null ? r.get("approved_by_name") : "Nguyễn Thị Lan (Chủ cửa hàng)");
             m.put("receiptDate", r.get("receipt_date") != null ? r.get("receipt_date").toString() : "2026-10-25");
             m.put("status", r.get("status") != null ? r.get("status") : "Approved");
             m.put("invoiceNumber", "HD-NK-" + r.get("id"));
@@ -190,17 +193,17 @@ public class FullOperationsCompatController {
     @GetMapping("/stock-receipts/{id}")
     public ResponseEntity<Map<String, Object>> getStockReceiptById(@PathVariable Long id) {
         String sql = """
-            SELECT r.id, r.receipt_code, r.supplier_id, s.name as supplier_name,
-                   r.staff_id, u1.full_name as staff_name,
-                   r.approved_by, u2.full_name as approved_by_name,
-                   r.receipt_date, r.status, r.notes, r.total_amount,
-                   r.created_at, r.updated_at
-            FROM stock_receipts r
-            LEFT JOIN suppliers s ON r.supplier_id = s.id
-            LEFT JOIN users u1 ON r.staff_id = u1.id
-            LEFT JOIN users u2 ON r.approved_by = u2.id
-            WHERE r.id = ?
-        """;
+                    SELECT r.id, r.receipt_code, r.supplier_id, s.name as supplier_name,
+                           r.staff_id, u1.full_name as staff_name,
+                           r.approved_by, u2.full_name as approved_by_name,
+                           r.receipt_date, r.status, r.notes, r.total_amount,
+                           r.created_at, r.updated_at
+                    FROM stock_receipts r
+                    LEFT JOIN suppliers s ON r.supplier_id = s.id
+                    LEFT JOIN users u1 ON r.staff_id = u1.id
+                    LEFT JOIN users u2 ON r.approved_by = u2.id
+                    WHERE r.id = ?
+                """;
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, id);
         if (rows.isEmpty()) {
             return ResponseEntity.notFound().build();
@@ -208,38 +211,39 @@ public class FullOperationsCompatController {
         Map<String, Object> r = rows.get(0);
 
         String detailSql = """
-            SELECT d.id, d.product_id, p.sku_code as sku, p.name as product_name,
-                   d.quantity, d.cost_price, d.line_total,
-                   u.unit_name
-            FROM stock_receipt_detail d
-            JOIN products p ON d.product_id = p.id
-            LEFT JOIN product_units u ON p.id = u.product_id AND u.is_base_unit = true
-            WHERE d.receipt_id = ?
-        """;
+                    SELECT d.id, d.product_id, p.sku, p.name as product_name,
+                           d.quantity, d.cost_price, d.line_total,
+                           u.unit_name
+                    FROM stock_receipt_detail d
+                    JOIN products p ON d.product_id = p.id
+                    LEFT JOIN product_units u ON p.id = u.product_id AND u.is_base = true
+                    WHERE d.receipt_id = ?
+                """;
         List<Map<String, Object>> detailRows = jdbcTemplate.queryForList(detailSql, id);
         List<Map<String, Object>> details = new ArrayList<>();
         for (Map<String, Object> dr : detailRows) {
-            Map<String, Object> item = new HashMap<>();
-            item.put("id", dr.get("id"));
-            item.put("productId", dr.get("product_id"));
-            item.put("skuCode", dr.get("sku") != null ? dr.get("sku") : "SKU-" + dr.get("product_id"));
-            item.put("productName", dr.get("product_name") != null ? dr.get("product_name") : "Sản phẩm");
-            item.put("unitName", dr.get("unit_name") != null ? dr.get("unit_name") : "Cái");
-            item.put("quantity", dr.get("quantity") != null ? dr.get("quantity") : 1);
-            item.put("unitCost", dr.get("cost_price") != null ? dr.get("cost_price") : 0);
-            item.put("lineTotal", dr.get("line_total") != null ? dr.get("line_total") : 0);
-            details.add(item);
+            details.add(Map.of(
+                    "id", dr.get("id"),
+                    "productId", dr.get("product_id"),
+                    "skuCode", dr.get("sku") != null ? dr.get("sku") : "SKU-" + dr.get("product_id"),
+                    "productName", dr.get("product_name"),
+                    "unitName", dr.get("unit_name") != null ? dr.get("unit_name") : "Cái",
+                    "quantity", dr.get("quantity"),
+                    "unitCost", dr.get("cost_price"),
+                    "lineTotal", dr.get("line_total")));
         }
 
         Map<String, Object> res = new HashMap<>();
         res.put("id", r.get("id"));
         res.put("receiptCode", r.get("receipt_code"));
         res.put("supplierId", r.get("supplier_id"));
-        res.put("supplierName", r.get("supplier_name") != null ? r.get("supplier_name") : "Nhà phân phối Cadivi / Tiền Phong");
+        res.put("supplierName",
+                r.get("supplier_name") != null ? r.get("supplier_name") : "Nhà phân phối Cadivi / Tiền Phong");
         res.put("staffId", r.get("staff_id"));
         res.put("staffName", r.get("staff_name") != null ? r.get("staff_name") : "Trần Văn Minh (Nhân viên)");
         res.put("approvedBy", r.get("approved_by"));
-        res.put("approvedByName", r.get("approved_by_name") != null ? r.get("approved_by_name") : "Nguyễn Thị Lan (Chủ cửa hàng)");
+        res.put("approvedByName",
+                r.get("approved_by_name") != null ? r.get("approved_by_name") : "Nguyễn Thị Lan (Chủ cửa hàng)");
         res.put("receiptDate", r.get("receipt_date") != null ? r.get("receipt_date").toString() : "2026-10-25");
         res.put("status", r.get("status") != null ? r.get("status") : "Approved");
         res.put("invoiceNumber", "HD-NK-" + r.get("id"));
@@ -258,14 +262,14 @@ public class FullOperationsCompatController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int limit) {
         String sql = """
-            SELECT d.id, d.dispatch_code, d.user_id, u.full_name as user_name,
-                   d.order_id, o.order_code,
-                   d.dispatch_date, d.status
-            FROM stock_dispatches d
-            LEFT JOIN users u ON d.user_id = u.id
-            LEFT JOIN orders o ON d.order_id = o.id
-            ORDER BY d.id DESC
-        """;
+                    SELECT d.id, d.dispatch_code, d.user_id, u.full_name as user_name,
+                           d.order_id, o.order_code,
+                           d.dispatch_date, d.status
+                    FROM stock_dispatches d
+                    LEFT JOIN users u ON d.user_id = u.id
+                    LEFT JOIN orders o ON d.order_id = o.id
+                    ORDER BY d.id DESC
+                """;
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
         List<Map<String, Object>> items = new ArrayList<>();
         for (Map<String, Object> d : rows) {
@@ -291,8 +295,8 @@ public class FullOperationsCompatController {
     public ResponseEntity<Map<String, Object>> getCashFunds() {
         List<Map<String, Object>> list = List.of(
                 Map.of("id", 1, "code", "TM01", "name", "Két tiền mặt tại quầy", "isDefault", true, "isActive", true),
-                Map.of("id", 2, "code", "NH01", "name", "Tài khoản Vietcombank PetCare", "isDefault", false, "isActive", true)
-        );
+                Map.of("id", 2, "code", "NH01", "name", "Tài khoản Vietcombank PetCare", "isDefault", false, "isActive",
+                        true));
         return ResponseEntity.ok(Map.of("success", true, "data", Map.of("items", list)));
     }
 
@@ -301,10 +305,17 @@ public class FullOperationsCompatController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int limit) {
         List<Map<String, Object>> list = List.of(
-                Map.of("id", 1, "transactionCode", "PT001", "type", "Income", "amount", 1650000.0, "fundId", 1, "fundName", "Két tiền mặt tại quầy", "category", "Thu tiền bán Lavabo INAX", "transactionDate", "2026-10-30 09:30", "status", "Completed", "notes", "Thu tiền mặt khách lẻ"),
-                Map.of("id", 2, "transactionCode", "PT002", "type", "Income", "amount", 20000000.0, "fundId", 2, "fundName", "Tài khoản Vietcombank", "category", "Tạm ứng vật tư công trình Gamuda", "transactionDate", "2026-10-30 10:15", "status", "Completed", "notes", "Cty Kiến Á chuyển khoản"),
-                Map.of("id", 3, "transactionCode", "PC001", "type", "Expense", "amount", 3500000.0, "fundId", 1, "fundName", "Két tiền mặt tại quầy", "category", "Chi phí vận chuyển ống nước", "transactionDate", "2026-10-30 11:00", "status", "Completed", "notes", "Thuê xe tải giao hàng công trình Nam Cường")
-        );
+                Map.of("id", 1, "transactionCode", "PT001", "type", "Income", "amount", 1650000.0, "fundId", 1,
+                        "fundName", "Két tiền mặt tại quầy", "category", "Thu tiền bán Lavabo INAX", "transactionDate",
+                        "2026-10-30 09:30", "status", "Completed", "notes", "Thu tiền mặt khách lẻ"),
+                Map.of("id", 2, "transactionCode", "PT002", "type", "Income", "amount", 20000000.0, "fundId", 2,
+                        "fundName", "Tài khoản Vietcombank", "category", "Tạm ứng vật tư công trình Gamuda",
+                        "transactionDate", "2026-10-30 10:15", "status", "Completed", "notes",
+                        "Cty Kiến Á chuyển khoản"),
+                Map.of("id", 3, "transactionCode", "PC001", "type", "Expense", "amount", 3500000.0, "fundId", 1,
+                        "fundName", "Két tiền mặt tại quầy", "category", "Chi phí vận chuyển ống nước",
+                        "transactionDate", "2026-10-30 11:00", "status", "Completed", "notes",
+                        "Thuê xe tải giao hàng công trình Nam Cường"));
         Map<String, Object> data = Map.of("items", list, "page", page, "limit", limit, "total", list.size());
         return ResponseEntity.ok(Map.of("success", true, "data", data));
     }
@@ -322,8 +333,7 @@ public class FullOperationsCompatController {
                 "website", "https://diennuocsmart.vn",
                 "taxCode", "0109988776",
                 "logoUrl", "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=200",
-                "updatedAt", "2026-10-30T08:00:00"
-        );
+                "updatedAt", "2026-10-30T08:00:00");
         return ResponseEntity.ok(Map.of("success", true, "data", profile));
     }
 
@@ -360,15 +370,17 @@ public class FullOperationsCompatController {
             m.put("joinedDate", "2026-01-01");
             items.add(m);
         }
-        return ResponseEntity.ok(Map.of("success", true, "data", Map.of("items", items, "page", page, "limit", limit, "total", items.size())));
+        return ResponseEntity.ok(Map.of("success", true, "data",
+                Map.of("items", items, "page", page, "limit", limit, "total", items.size())));
     }
 
     @GetMapping("/alert-settings")
     public ResponseEntity<Map<String, Object>> getAlertSettings() {
         List<Map<String, Object>> items = List.of(
-                Map.of("id", 1, "code", "LOW_STOCK", "name", "Cảnh báo hết hàng tồn", "threshold", 10, "isActive", true),
-                Map.of("id", 2, "code", "EXPIRY_WARNING", "name", "Cảnh báo cận hạn sử dụng (ngày)", "threshold", 30, "isActive", true)
-        );
+                Map.of("id", 1, "code", "LOW_STOCK", "name", "Cảnh báo hết hàng tồn", "threshold", 10, "isActive",
+                        true),
+                Map.of("id", 2, "code", "EXPIRY_WARNING", "name", "Cảnh báo cận hạn sử dụng (ngày)", "threshold", 30,
+                        "isActive", true));
         return ResponseEntity.ok(Map.of("success", true, "data", items));
     }
 
@@ -377,17 +389,20 @@ public class FullOperationsCompatController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int limit) {
         List<Map<String, Object>> items = List.of(
-                Map.of("id", 1, "action", "LOGIN", "username", "admin", "details", "Đăng nhập thành công từ IP 192.168.1.5", "timestamp", "2026-10-28 08:15:00"),
-                Map.of("id", 2, "action", "ORDER_CREATED", "username", "admin", "details", "Tạo hóa đơn HD-4 thành công", "timestamp", "2026-10-28 14:20:00")
-        );
-        return ResponseEntity.ok(Map.of("success", true, "data", Map.of("items", items, "page", page, "limit", limit, "total", items.size())));
+                Map.of("id", 1, "action", "LOGIN", "username", "admin", "details",
+                        "Đăng nhập thành công từ IP 192.168.1.5", "timestamp", "2026-10-28 08:15:00"),
+                Map.of("id", 2, "action", "ORDER_CREATED", "username", "admin", "details",
+                        "Tạo hóa đơn HD-4 thành công", "timestamp", "2026-10-28 14:20:00"));
+        return ResponseEntity.ok(Map.of("success", true, "data",
+                Map.of("items", items, "page", page, "limit", limit, "total", items.size())));
     }
 
     // 6. ANALYTICS & APPROVALS (Analytics moved to AnalyticsCompatController)
     @GetMapping("/approvals/pending")
     public ResponseEntity<Map<String, Object>> getPendingApprovals() {
         Map<String, Object> summary = Map.of("totalPending", 0, "byType", Collections.emptyMap());
-        Map<String, Object> data = Map.of("summary", summary, "items", Collections.emptyList(), "page", 1, "limit", 20, "total", 0);
+        Map<String, Object> data = Map.of("summary", summary, "items", Collections.emptyList(), "page", 1, "limit", 20,
+                "total", 0);
         return ResponseEntity.ok(Map.of("success", true, "data", data));
     }
 }

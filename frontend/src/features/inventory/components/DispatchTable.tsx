@@ -3,7 +3,7 @@ import React from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { StatusBadge } from "./StatusBadge"
-import { formatDate } from "../utils"
+import { formatDate, getUserInitials } from "../utils"
 import type { StockDispatch } from "../types"
 import { cn } from "@/lib/utils"
 import {
@@ -17,9 +17,19 @@ import {
   TABLE_CELL_MONO_CLASS,
 } from "@/lib/data-table-layout"
 
+const DEFAULT_DISPATCH_COLUMNS = [
+  "dispatchCode",
+  "orderCode",
+  "customerName",
+  "dispatchDate",
+  "userName",
+  "itemCount",
+  "status",
+]
+
 interface DispatchTableProps {
   dispatches: StockDispatch[]
-  visibleColumnKeys: string[]
+  visibleColumnKeys?: string[]
   onAction: (dispatch: StockDispatch) => void
   onEdit?: (dispatch: StockDispatch) => void
   onDelete?: (id: number) => void
@@ -28,7 +38,13 @@ interface DispatchTableProps {
 /**
  * Một bảng duy nhất (thead + tbody) — class cột từ `@/lib/data-table-layout`.
  */
-export function DispatchTable({ dispatches, visibleColumnKeys, onAction, onEdit, onDelete }: DispatchTableProps) {
+export function DispatchTable({
+  dispatches,
+  visibleColumnKeys = DEFAULT_DISPATCH_COLUMNS,
+  onAction,
+  onEdit,
+  onDelete,
+}: DispatchTableProps) {
   const columnRenderers = {
     dispatchCode: {
       head: <TableHead className={cn(DISPATCH_TABLE_COL.dispatchCode, TABLE_HEAD_CLASS)}>Mã phiếu</TableHead>,
@@ -51,8 +67,8 @@ export function DispatchTable({ dispatches, visibleColumnKeys, onAction, onEdit,
       cell: (dispatch: StockDispatch) => (
         <TableCell className={cn(DISPATCH_TABLE_COL.userName, TABLE_CELL_SECONDARY_CLASS)}>
           <div className="flex items-center gap-2 min-w-0">
-            <div className="h-6 w-6 shrink-0 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600 border border-slate-200 uppercase">
-              {dispatch.userName.split(" ").map((n) => n[0]).join("")}
+            <div className="h-6 w-6 shrink-0 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600 border border-slate-200 uppercase overflow-hidden">
+              {getUserInitials(dispatch.userName)}
             </div>
             <span className="truncate">{dispatch.userName}</span>
           </div>

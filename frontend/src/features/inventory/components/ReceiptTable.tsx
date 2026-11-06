@@ -1,6 +1,6 @@
 import { Package, Eye, Edit2, Trash2 } from "lucide-react"
 import React from "react"
-import { formatCurrency, formatDate } from "../utils"
+import { formatCurrency, formatDate, getUserInitials } from "../utils"
 import type { StockReceipt } from "../types"
 import { StatusBadge } from "./StatusBadge"
 import {
@@ -25,9 +25,20 @@ import {
   TABLE_CELL_NUMBER_CLASS,
 } from "@/lib/data-table-layout"
 
+const DEFAULT_RECEIPT_COLUMNS = [
+  "receiptCode",
+  "supplierName",
+  "receiptDate",
+  "staffName",
+  "invoiceNumber",
+  "lineCount",
+  "totalAmount",
+  "status",
+]
+
 interface ReceiptTableProps {
   receipts: StockReceipt[]
-  visibleColumnKeys: string[]
+  visibleColumnKeys?: string[]
   onAction: (receipt: StockReceipt) => void
   onEdit?: (receipt: StockReceipt) => void
   onDelete?: (id: number) => void
@@ -38,7 +49,14 @@ interface ReceiptTableProps {
 /**
  * Một bảng duy nhất (thead + tbody) — class cột lấy từ `@/lib/data-table-layout` (chuẩn dự án).
  */
-export function ReceiptTable({ receipts, visibleColumnKeys, onAction, onEdit, onDelete, canDeleteReceipt }: ReceiptTableProps) {
+export function ReceiptTable({
+  receipts,
+  visibleColumnKeys = DEFAULT_RECEIPT_COLUMNS,
+  onAction,
+  onEdit,
+  onDelete,
+  canDeleteReceipt,
+}: ReceiptTableProps) {
   const columnRenderers = {
     receiptCode: {
       head: <TableHead className={cn(RECEIPT_TABLE_COL.receiptCode, TABLE_HEAD_CLASS)}>Mã phiếu</TableHead>,
@@ -57,8 +75,8 @@ export function ReceiptTable({ receipts, visibleColumnKeys, onAction, onEdit, on
       cell: (receipt: StockReceipt) => (
         <TableCell className={cn(RECEIPT_TABLE_COL.staffName, TABLE_CELL_SECONDARY_CLASS)}>
           <div className="flex items-center gap-2 min-w-0">
-            <div className="h-6 w-6 shrink-0 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600 border border-slate-200 uppercase">
-              {receipt.staffName.split(" ").map((n) => n[0]).join("")}
+            <div className="h-6 w-6 shrink-0 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600 border border-slate-200 uppercase overflow-hidden">
+              {getUserInitials(receipt.staffName)}
             </div>
             <span className="truncate">{receipt.staffName}</span>
           </div>
@@ -156,6 +174,7 @@ export function ReceiptTable({ receipts, visibleColumnKeys, onAction, onEdit, on
                       }
                     }}
                     disabled={!deleteAllowed}
+                    aria-hidden={!deleteAllowed ? "true" : undefined}
                     title={
                       deleteAllowed
                         ? "Xóa phiếu"

@@ -69,3 +69,22 @@ export function calculateVariancePercent(actual: number, system: number): number
   if (system === 0) return 0;
   return ((actual - system) / system) * 100;
 }
+
+/**
+ * Lấy chữ cái đại diện ngắn gọn cho tên người dùng hiển thị trên Avatar tròn.
+ * Ví dụ: "Trần Văn Minh (Nhân viên)" -> "TM"
+ */
+export function getUserInitials(name?: string | null, maxChars = 2): string {
+  if (!name) return "U";
+  // Bỏ phần chú thích trong ngoặc đơn như (Nhân viên), (Chủ cửa hàng)
+  const clean = name.replace(/\(.*?\)/g, "").trim();
+  if (!clean) return "U";
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (words.length === 1) {
+    return words[0].slice(0, maxChars).toUpperCase();
+  }
+  if (maxChars === 1) {
+    return words[words.length - 1][0].toUpperCase();
+  }
+  return `${words[0][0]}${words[words.length - 1][0]}`.toUpperCase();
+}
