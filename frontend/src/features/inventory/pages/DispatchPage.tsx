@@ -128,7 +128,7 @@ export function DispatchPage() {
     },
     onError: (e: unknown) => {
       if (e instanceof ApiRequestError) {
-        toast.error(e.body?.message ?? "Không duyệt được phiếu")
+        toast.error(e.body?.message || "Không duyệt được phiếu")
       }
       else {
         toast.error("Không duyệt được phiếu")
@@ -153,7 +153,7 @@ export function DispatchPage() {
     },
     onError: (e) => {
       if (e instanceof ApiRequestError) {
-        toast.error(e.body?.message ?? "Không xóa được phiếu")
+        toast.error(e.body?.message || "Không xóa được phiếu")
       }
       else {
         toast.error("Không xóa được phiếu")
@@ -219,7 +219,7 @@ export function DispatchPage() {
 
   useEffect(() => {
     if (isError && error instanceof ApiRequestError) {
-      toast.error(error.body?.message ?? "Không tải được danh sách phiếu xuất")
+      toast.error(error.body?.message || "Không tải được danh sách phiếu xuất")
     }
   }, [isError, error])
 

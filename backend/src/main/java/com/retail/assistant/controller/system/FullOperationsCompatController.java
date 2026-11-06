@@ -193,17 +193,17 @@ public class FullOperationsCompatController {
     @GetMapping("/stock-receipts/{id}")
     public ResponseEntity<Map<String, Object>> getStockReceiptById(@PathVariable Long id) {
         String sql = """
-                    SELECT r.id, r.receipt_code, r.supplier_id, s.name as supplier_name,
-                           r.staff_id, u1.full_name as staff_name,
-                           r.approved_by, u2.full_name as approved_by_name,
-                           r.receipt_date, r.status, r.notes, r.total_amount,
-                           r.created_at, r.updated_at
-                    FROM stock_receipts r
-                    LEFT JOIN suppliers s ON r.supplier_id = s.id
-                    LEFT JOIN users u1 ON r.staff_id = u1.id
-                    LEFT JOIN users u2 ON r.approved_by = u2.id
-                    WHERE r.id = ?
-                """;
+            SELECT r.id, r.receipt_code, r.supplier_id, s.name as supplier_name,
+                   r.staff_id, u1.full_name as staff_name,
+                   r.approved_by, u2.full_name as approved_by_name,
+                   r.receipt_date, r.status, r.notes, r.total_amount,
+                   r.created_at, r.updated_at
+            FROM stock_receipts r
+            LEFT JOIN suppliers s ON r.supplier_id = s.id
+            LEFT JOIN users u1 ON r.staff_id = u1.id
+            LEFT JOIN users u2 ON r.approved_by = u2.id
+            WHERE r.id = ?
+        """;
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, id);
         if (rows.isEmpty()) {
             return ResponseEntity.notFound().build();
@@ -211,26 +211,27 @@ public class FullOperationsCompatController {
         Map<String, Object> r = rows.get(0);
 
         String detailSql = """
-                    SELECT d.id, d.product_id, p.sku, p.name as product_name,
-                           d.quantity, d.cost_price, d.line_total,
-                           u.unit_name
-                    FROM stock_receipt_detail d
-                    JOIN products p ON d.product_id = p.id
-                    LEFT JOIN product_units u ON p.id = u.product_id AND u.is_base = true
-                    WHERE d.receipt_id = ?
-                """;
+            SELECT d.id, d.product_id, p.sku_code as sku, p.name as product_name,
+                   d.quantity, d.cost_price, d.line_total,
+                   u.unit_name
+            FROM stock_receipt_detail d
+            JOIN products p ON d.product_id = p.id
+            LEFT JOIN product_units u ON p.id = u.product_id AND u.is_base_unit = true
+            WHERE d.receipt_id = ?
+        """;
         List<Map<String, Object>> detailRows = jdbcTemplate.queryForList(detailSql, id);
         List<Map<String, Object>> details = new ArrayList<>();
         for (Map<String, Object> dr : detailRows) {
-            details.add(Map.of(
-                    "id", dr.get("id"),
-                    "productId", dr.get("product_id"),
-                    "skuCode", dr.get("sku") != null ? dr.get("sku") : "SKU-" + dr.get("product_id"),
-                    "productName", dr.get("product_name"),
-                    "unitName", dr.get("unit_name") != null ? dr.get("unit_name") : "Cái",
-                    "quantity", dr.get("quantity"),
-                    "unitCost", dr.get("cost_price"),
-                    "lineTotal", dr.get("line_total")));
+            Map<String, Object> item = new HashMap<>();
+            item.put("id", dr.get("id"));
+            item.put("productId", dr.get("product_id"));
+            item.put("skuCode", dr.get("sku") != null ? dr.get("sku") : "SKU-" + dr.get("product_id"));
+            item.put("productName", dr.get("product_name") != null ? dr.get("product_name") : "Sản phẩm");
+            item.put("unitName", dr.get("unit_name") != null ? dr.get("unit_name") : "Cái");
+            item.put("quantity", dr.get("quantity") != null ? dr.get("quantity") : 1);
+            item.put("unitCost", dr.get("cost_price") != null ? dr.get("cost_price") : 0);
+            item.put("lineTotal", dr.get("line_total") != null ? dr.get("line_total") : 0);
+            details.add(item);
         }
 
         Map<String, Object> res = new HashMap<>();
@@ -245,7 +246,7 @@ public class FullOperationsCompatController {
         res.put("approvedByName",
                 r.get("approved_by_name") != null ? r.get("approved_by_name") : "Nguyễn Thị Lan (Chủ cửa hàng)");
         res.put("receiptDate", r.get("receipt_date") != null ? r.get("receipt_date").toString() : "2026-10-25");
-        res.put("status", r.get("status") != null ? r.get("status") : "Approved");
+        res.put("status", r.get("status") != null ? r.get("status") : "APPROVED");
         res.put("invoiceNumber", "HD-NK-" + r.get("id"));
         res.put("totalAmount", r.get("total_amount") != null ? r.get("total_amount") : 12050000.0);
         res.put("notes", r.get("notes"));
@@ -255,6 +256,130 @@ public class FullOperationsCompatController {
         res.put("details", details);
 
         return ResponseEntity.ok(Map.of("success", true, "data", res));
+    }
+
+    @PostMapping("/stock-receipts/{id}/approve")
+    public ResponseEntity<Map<String, Object>> approveStockReceipt(@PathVariable Long id) {
+        jdbcTemplate.update("UPDATE stock_receipts SET status = 'APPROVED', approved_by = 10, updated_at = NOW() WHERE id = ?", id);
+        return getStockReceiptById(id);
+    }
+
+    @PostMapping("/stock-receipts/{id}/reject")
+    public ResponseEntity<Map<String, Object>> rejectStockReceipt(@PathVariable Long id, @RequestBody(required = false) Map<String, Object> body) {
+        String reason = body != null && body.containsKey("reason") ? (String) body.get("reason") : "Không đạt yêu cầu";
+        jdbcTemplate.update("UPDATE stock_receipts SET status = 'REJECTED', notes = COALESCE(notes, '') || ' [Từ chối: ' || ? || ']', updated_at = NOW() WHERE id = ?", reason, id);
+        return getStockReceiptById(id);
+    }
+
+    @PostMapping("/stock-receipts/{id}/mark-received")
+    public ResponseEntity<Map<String, Object>> markReceivedStockReceipt(@PathVariable Long id) {
+        jdbcTemplate.update("UPDATE stock_receipts SET status = 'RECEIVED', updated_at = NOW() WHERE id = ?", id);
+        return getStockReceiptById(id);
+    }
+
+    @PostMapping("/stock-receipts/{id}/owner-accept")
+    public ResponseEntity<Map<String, Object>> ownerAcceptStockReceipt(@PathVariable Long id) {
+        jdbcTemplate.update("UPDATE stock_receipts SET status = 'DONE', approved_by = 10, updated_at = NOW() WHERE id = ?", id);
+        return getStockReceiptById(id);
+    }
+
+    @GetMapping("/stock-dispatches/{id}")
+    public ResponseEntity<Map<String, Object>> getStockDispatchById(@PathVariable Long id) {
+        String sql = """
+            SELECT d.id, d.dispatch_code, d.user_id, u.full_name as user_name,
+                   d.order_id, o.order_code, o.customer_name,
+                   d.dispatch_date, d.status, d.notes, d.created_at, d.updated_at
+            FROM stock_dispatches d
+            LEFT JOIN users u ON d.user_id = u.id
+            LEFT JOIN sale_orders o ON d.order_id = o.id
+            WHERE d.id = ?
+        """;
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, id);
+        if (rows.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        Map<String, Object> d = rows.get(0);
+
+        String linesSql = """
+            SELECT l.id, l.product_id, p.sku_code, p.name as product_name,
+                   l.quantity, l.unit_price_snapshot,
+                   u.unit_name
+            FROM stock_dispatch_lines l
+            JOIN products p ON l.product_id = p.id
+            LEFT JOIN product_units u ON p.id = u.product_id AND u.is_base_unit = true
+            WHERE l.dispatch_id = ?
+        """;
+        List<Map<String, Object>> lineRows = jdbcTemplate.queryForList(linesSql, id);
+        List<Map<String, Object>> lines = new ArrayList<>();
+        for (Map<String, Object> lr : lineRows) {
+            Map<String, Object> item = new HashMap<>();
+            double price = lr.get("unit_price_snapshot") instanceof Number ? ((Number) lr.get("unit_price_snapshot")).doubleValue() : 0.0;
+            double qty = lr.get("quantity") instanceof Number ? ((Number) lr.get("quantity")).doubleValue() : 1.0;
+            item.put("id", lr.get("id"));
+            item.put("productId", lr.get("product_id"));
+            item.put("productName", lr.get("product_name"));
+            item.put("skuCode", lr.get("sku_code"));
+            item.put("quantity", qty);
+            item.put("unitPrice", price);
+            item.put("unitPriceSnapshot", price);
+            item.put("lineTotal", price * qty);
+            item.put("unitName", lr.get("unit_name") != null ? lr.get("unit_name") : "Cái");
+            item.put("availableQuantity", 999.0);
+            item.put("shortageLine", false);
+            item.put("isFullyDispatched", true);
+            lines.add(item);
+        }
+
+        Map<String, Object> res = new HashMap<>();
+        res.put("id", d.get("id"));
+        res.put("dispatchCode", d.get("dispatch_code"));
+        res.put("orderId", d.get("order_id"));
+        res.put("orderCode", d.get("order_code") != null ? d.get("order_code") : "HD-XK-" + d.get("id"));
+        res.put("customerId", 2);
+        res.put("customerName", d.get("customer_name") != null ? d.get("customer_name") : "Hoàng Văn Nam (Thợ điện nước)");
+        res.put("dispatchDate", d.get("dispatch_date") != null ? d.get("dispatch_date").toString() : "2026-10-26");
+        res.put("status", d.get("status") != null ? d.get("status") : "DELIVERED");
+        res.put("notes", d.get("notes"));
+        res.put("userId", d.get("user_id"));
+        res.put("userName", d.get("user_name") != null ? d.get("user_name") : "Trần Văn Minh (Nhân viên)");
+        res.put("lineCount", lines.size());
+        res.put("manualDispatch", false);
+        res.put("lines", lines);
+        res.put("items", lines);
+        res.put("createdAt", d.get("created_at") != null ? d.get("created_at").toString() : "2026-10-26T09:00:00");
+        res.put("updatedAt", d.get("updated_at") != null ? d.get("updated_at").toString() : "2026-10-26T09:00:00");
+
+        return ResponseEntity.ok(Map.of("success", true, "data", res));
+    }
+
+    @PostMapping("/stock-dispatches/{id}/approve")
+    public ResponseEntity<Map<String, Object>> approveStockDispatch(@PathVariable Long id) {
+        jdbcTemplate.update("UPDATE stock_dispatches SET status = 'SHIPPED', updated_at = NOW() WHERE id = ?", id);
+        return getStockDispatchById(id);
+    }
+
+    @PostMapping("/stock-dispatches/{id}/mark-preparing")
+    public ResponseEntity<Map<String, Object>> markPreparingStockDispatch(@PathVariable Long id) {
+        jdbcTemplate.update("UPDATE stock_dispatches SET status = 'PENDING', updated_at = NOW() WHERE id = ?", id);
+        return getStockDispatchById(id);
+    }
+
+    @PostMapping("/stock-dispatches/{id}/mark-dispatched")
+    public ResponseEntity<Map<String, Object>> markDispatchedStockDispatch(@PathVariable Long id) {
+        jdbcTemplate.update("UPDATE stock_dispatches SET status = 'SHIPPED', updated_at = NOW() WHERE id = ?", id);
+        return getStockDispatchById(id);
+    }
+
+    @PostMapping("/stock-dispatches/{id}/mark-delivered")
+    public ResponseEntity<Map<String, Object>> markDeliveredStockDispatch(@PathVariable Long id) {
+        jdbcTemplate.update("UPDATE stock_dispatches SET status = 'DELIVERED', updated_at = NOW() WHERE id = ?", id);
+        return getStockDispatchById(id);
+    }
+
+    @PostMapping("/stock-dispatches/{id}/mark-done")
+    public ResponseEntity<Map<String, Object>> markDoneStockDispatch(@PathVariable Long id) {
+        jdbcTemplate.update("UPDATE stock_dispatches SET status = 'DELIVERED', updated_at = NOW() WHERE id = ?", id);
+        return getStockDispatchById(id);
     }
 
     @GetMapping("/stock-dispatches")

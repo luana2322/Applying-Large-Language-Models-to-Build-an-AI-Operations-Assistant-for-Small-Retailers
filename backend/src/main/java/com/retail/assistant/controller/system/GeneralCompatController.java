@@ -2,10 +2,21 @@ package com.retail.assistant.controller.system;
 
 import com.retail.assistant.domain.entity.sales.SaleOrder;
 import com.retail.assistant.domain.repository.sales.SaleOrderRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URI;
+import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @RestController
@@ -13,9 +24,19 @@ import java.util.*;
 public class GeneralCompatController {
 
     private final SaleOrderRepository saleOrderRepository;
+    private final JdbcTemplate jdbcTemplate;
+    private final HttpClient httpClient;
 
-    public GeneralCompatController(SaleOrderRepository saleOrderRepository) {
+    @Value("${telegram.bot.token:9021156914:AAGH7-WiuYcZaHh5tx1YnOA7vK2_dhBWO2k}")
+    private String telegramBotToken;
+
+    @Value("${telegram.chat.id:5062541960}")
+    private String telegramChatId;
+
+    public GeneralCompatController(SaleOrderRepository saleOrderRepository, JdbcTemplate jdbcTemplate) {
         this.saleOrderRepository = saleOrderRepository;
+        this.jdbcTemplate = jdbcTemplate;
+        this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(4)).build();
     }
 
     // 1. DANH SÁCH ĐƠN HÀNG & LỊCH SỬ HÓA ĐƠN
@@ -28,12 +49,23 @@ public class GeneralCompatController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int limit) {
 
-        List<SaleOrder> all = saleOrderRepository.findAll();
+        String sql = """
+            SELECT o.id, o.order_code, o.customer_id, o.customer_name, c.name as real_cust_name,
+                   o.total_amount, o.discount_amount, o.final_amount, o.status, o.notes,
+                   COUNT(d.id) as items_count, o.created_at, o.updated_at
+            FROM sale_orders o
+            LEFT JOIN customers c ON o.customer_id = c.id
+            LEFT JOIN order_detail d ON o.id = d.order_id
+            GROUP BY o.id, c.name
+            ORDER BY o.id DESC
+        """;
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
         List<Map<String, Object>> items = new ArrayList<>();
 
-        for (SaleOrder o : all) {
-            String custName = o.getCustomer() != null ? o.getCustomer().getName() : "Khách lẻ tại quầy";
-            String code = o.getOrderCode() != null ? o.getOrderCode() : "HD-" + o.getId();
+        for (Map<String, Object> o : rows) {
+            String custName = o.get("customer_name") != null ? (String) o.get("customer_name") :
+                    (o.get("real_cust_name") != null ? (String) o.get("real_cust_name") : "Khách lẻ tại quầy");
+            String code = o.get("order_code") != null ? (String) o.get("order_code") : "HD-" + o.get("id");
 
             if (search != null && !search.isBlank()) {
                 String q = search.toLowerCase();
@@ -42,20 +74,20 @@ public class GeneralCompatController {
             }
 
             Map<String, Object> m = new HashMap<>();
-            m.put("id", o.getId());
+            m.put("id", o.get("id"));
             m.put("orderCode", code);
-            m.put("customerId", o.getCustomer() != null ? o.getCustomer().getId() : 1);
+            m.put("customerId", o.get("customer_id") != null ? o.get("customer_id") : 1);
             m.put("customerName", custName);
-            m.put("totalAmount", o.getTotalAmount() != null ? o.getTotalAmount() : 0.0);
-            m.put("discountAmount", o.getDiscountAmount() != null ? o.getDiscountAmount() : 0.0);
-            m.put("finalAmount", o.getFinalAmount() != null ? o.getFinalAmount() : 0.0);
-            m.put("status", o.getStatus() != null ? o.getStatus() : "Delivered");
+            m.put("totalAmount", o.get("total_amount") != null ? o.get("total_amount") : 0.0);
+            m.put("discountAmount", o.get("discount_amount") != null ? o.get("discount_amount") : 0.0);
+            m.put("finalAmount", o.get("final_amount") != null ? o.get("final_amount") : 0.0);
+            m.put("status", o.get("status") != null ? o.get("status") : "Delivered");
             m.put("orderChannel", orderChannel != null ? orderChannel : "Retail");
             m.put("paymentStatus", "Paid");
-            m.put("itemsCount", 2);
-            m.put("notes", o.getNotes());
-            m.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : "2026-10-30T09:00:00");
-            m.put("updatedAt", o.getUpdatedAt() != null ? o.getUpdatedAt().toString() : "2026-10-30T09:00:00");
+            m.put("itemsCount", o.get("items_count") != null ? ((Number) o.get("items_count")).intValue() : 1);
+            m.put("notes", o.get("notes"));
+            m.put("createdAt", o.get("created_at") != null ? o.get("created_at").toString() : "2026-10-30T09:00:00");
+            m.put("updatedAt", o.get("updated_at") != null ? o.get("updated_at").toString() : "2026-10-30T09:00:00");
             items.add(m);
         }
 
@@ -74,40 +106,172 @@ public class GeneralCompatController {
     // 2. CHI TIẾT ĐƠN HÀNG
     @GetMapping("/sales-orders/{id}")
     public ResponseEntity<Map<String, Object>> getSalesOrderDetail(@PathVariable Long id) {
-        SaleOrder o = saleOrderRepository.findById(id).orElse(null);
-        String code = o != null && o.getOrderCode() != null ? o.getOrderCode() : "HD-" + id;
-        String custName = o != null && o.getCustomer() != null ? o.getCustomer().getName() : "Hoàng Văn Nam (Thợ điện nước)";
-        double total = o != null && o.getTotalAmount() != null ? o.getTotalAmount().doubleValue() : 1650000.0;
-        double finalAmt = o != null && o.getFinalAmount() != null ? o.getFinalAmount().doubleValue() : total;
+        String sql = """
+            SELECT o.id, o.order_code, o.customer_id, o.customer_name, c.name as real_cust_name,
+                   o.total_amount, o.discount_amount, o.final_amount, o.status, o.notes,
+                   o.created_at, o.updated_at
+            FROM sale_orders o
+            LEFT JOIN customers c ON o.customer_id = c.id
+            WHERE o.id = ?
+        """;
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, id);
+        if (rows.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        Map<String, Object> o = rows.get(0);
+        String code = o.get("order_code") != null ? (String) o.get("order_code") : "HD-" + id;
+        String custName = o.get("customer_name") != null ? (String) o.get("customer_name") :
+                (o.get("real_cust_name") != null ? (String) o.get("real_cust_name") : "Khách lẻ tại quầy");
+        double total = o.get("total_amount") instanceof Number ? ((Number) o.get("total_amount")).doubleValue() : 1650000.0;
+        double discount = o.get("discount_amount") instanceof Number ? ((Number) o.get("discount_amount")).doubleValue() : 0.0;
+        double finalAmt = o.get("final_amount") instanceof Number ? ((Number) o.get("final_amount")).doubleValue() : total;
 
-        Map<String, Object> item1 = Map.of(
-                "id", 1,
-                "productId", 1,
-                "productName", "Chậu Lavabo sứ đặt bàn Trắng tuyết Nano (INAX AL-299V)",
-                "skuCode", "TBVS-LVB-01",
-                "quantity", 1,
-                "unitPrice", 1650000.0,
-                "totalPrice", 1650000.0,
-                "unitName", "Cái"
-        );
+        String linesSql = """
+            SELECT d.id, d.product_id, p.sku_code, p.name as product_name,
+                   d.quantity, d.price_at_time, d.line_total,
+                   u.unit_name
+            FROM order_detail d
+            JOIN products p ON d.product_id = p.id
+            LEFT JOIN product_units u ON p.id = u.product_id AND u.is_base_unit = true
+            WHERE d.order_id = ?
+        """;
+        List<Map<String, Object>> lineRows = jdbcTemplate.queryForList(linesSql, id);
+        List<Map<String, Object>> lines = new ArrayList<>();
+        for (Map<String, Object> lr : lineRows) {
+            Map<String, Object> item = new HashMap<>();
+            double price = lr.get("price_at_time") instanceof Number ? ((Number) lr.get("price_at_time")).doubleValue() : 0.0;
+            double qty = lr.get("quantity") instanceof Number ? ((Number) lr.get("quantity")).doubleValue() : 1.0;
+            double lt = lr.get("line_total") instanceof Number ? ((Number) lr.get("line_total")).doubleValue() : (price * qty);
+
+            item.put("id", lr.get("id"));
+            item.put("productId", lr.get("product_id"));
+            item.put("productName", lr.get("product_name"));
+            item.put("skuCode", lr.get("sku_code"));
+            item.put("quantity", qty);
+            item.put("unitPrice", price);
+            item.put("totalPrice", lt);
+            item.put("lineTotal", lt);
+            item.put("unitName", lr.get("unit_name") != null ? lr.get("unit_name") : "Cái");
+            lines.add(item);
+        }
+
+        if (lines.isEmpty()) {
+            Map<String, Object> defItem = new HashMap<>();
+            defItem.put("id", 1);
+            defItem.put("productId", 1);
+            defItem.put("productName", "Vật tư điện nước & TBVS");
+            defItem.put("skuCode", "VT-DN-01");
+            defItem.put("quantity", 1);
+            defItem.put("unitPrice", total);
+            defItem.put("totalPrice", total);
+            defItem.put("lineTotal", total);
+            defItem.put("unitName", "Cái");
+            lines.add(defItem);
+        }
 
         Map<String, Object> detail = new HashMap<>();
         detail.put("id", id);
         detail.put("orderCode", code);
-        detail.put("customerId", 2);
+        detail.put("customerId", o.get("customer_id") != null ? o.get("customer_id") : 1);
         detail.put("customerName", custName);
         detail.put("totalAmount", total);
-        detail.put("discountAmount", 0.0);
+        detail.put("discountAmount", discount);
         detail.put("finalAmount", finalAmt);
-        detail.put("status", "Delivered");
+        detail.put("status", o.get("status") != null ? o.get("status") : "Delivered");
         detail.put("orderChannel", "Retail");
         detail.put("paymentStatus", "Paid");
-        detail.put("itemsCount", 1);
-        detail.put("items", List.of(item1));
-        detail.put("createdAt", o != null && o.getCreatedAt() != null ? o.getCreatedAt().toString() : "2026-10-30T09:00:00");
-        detail.put("updatedAt", o != null && o.getUpdatedAt() != null ? o.getUpdatedAt().toString() : "2026-10-30T09:00:00");
+        detail.put("itemsCount", lines.size());
+        detail.put("lines", lines);
+        detail.put("items", lines);
+        detail.put("createdAt", o.get("created_at") != null ? o.get("created_at").toString() : "2026-10-30T09:00:00");
+        detail.put("updatedAt", o.get("updated_at") != null ? o.get("updated_at").toString() : "2026-10-30T09:00:00");
 
         return ResponseEntity.ok(Map.of("success", true, "data", detail));
+    }
+
+    @PostMapping("/sales-orders/{id}/cancel")
+    public ResponseEntity<Map<String, Object>> cancelSalesOrder(@PathVariable Long id, @RequestBody(required = false) Map<String, Object> body) {
+        String reason = body != null && body.containsKey("reason") ? (String) body.get("reason") : "Khách hàng yêu cầu hủy đơn";
+        
+        // Lấy thông tin đơn hàng trước khi hủy để gửi Telegram
+        String orderCode = "HD-" + id;
+        String custName = "Khách hàng";
+        double total = 0.0;
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT order_code, customer_name, total_amount FROM sale_orders WHERE id = ?", id);
+            if (!rows.isEmpty()) {
+                Map<String, Object> row = rows.get(0);
+                if (row.get("order_code") != null) orderCode = (String) row.get("order_code");
+                if (row.get("customer_name") != null) custName = (String) row.get("customer_name");
+                if (row.get("total_amount") instanceof Number) total = ((Number) row.get("total_amount")).doubleValue();
+            }
+        } catch (Exception ignored) {}
+
+        jdbcTemplate.update("""
+            UPDATE sale_orders
+            SET status = 'CANCELLED', cancelled_at = NOW(), cancelled_by = 10,
+                notes = COALESCE(notes, '') || ' [Hủy đơn: ' || ? || ']',
+                updated_at = NOW()
+            WHERE id = ?
+        """, reason, id);
+
+        // Hoàn lại tồn kho
+        try {
+            List<Map<String, Object>> details = jdbcTemplate.queryForList(
+                "SELECT product_id, quantity FROM order_detail WHERE order_id = ?", id
+            );
+            for (Map<String, Object> det : details) {
+                int pId = ((Number) det.get("product_id")).intValue();
+                double q = ((Number) det.get("quantity")).doubleValue();
+                jdbcTemplate.update(
+                    "UPDATE inventory SET quantity = quantity + ?, updated_at = NOW() WHERE product_id = ?",
+                    q, pId
+                );
+            }
+        } catch (Exception ignored) {}
+
+        // TỰ ĐỘNG BẮN THÔNG BÁO TELEGRAM THẬT TỚI CHỦ CỬA HÀNG
+        try {
+            String timeStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm - dd/MM/yyyy"));
+            String teleMsg = String.format(
+                "🚨 CẢNH BÁO: ĐƠN HÀNG VỪA BỊ HỦY TRÊN HỆ THỐNG\n" +
+                "⏱ Thời gian: %s\n" +
+                "• Mã hóa đơn: %s\n" +
+                "• Khách hàng: %s\n" +
+                "• Trị giá đơn: %,.0f đ\n" +
+                "• Người thao tác: Nhân viên Trần Văn Minh\n" +
+                "👉 Lý do ghi nhận: \"%s\"\n\n" +
+                "✅ Hệ thống đã tự động hoàn lại tồn kho.",
+                timeStr, orderCode, custName, total, reason
+            );
+            String requestBody = "chat_id=" + URLEncoder.encode(telegramChatId, StandardCharsets.UTF_8)
+                    + "&text=" + URLEncoder.encode(teleMsg, StandardCharsets.UTF_8);
+            String teleUrl = "https://api.telegram.org/bot" + telegramBotToken + "/sendMessage";
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(teleUrl))
+                    .header("Content-Type", "application/x-www-form-urlencoded")
+                    .timeout(Duration.ofSeconds(4))
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .build();
+            httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (Exception ignored) {}
+
+        Map<String, Object> res = Map.of(
+            "id", id,
+            "status", "Cancelled",
+            "cancelledAt", LocalDateTime.now().toString(),
+            "cancelledBy", 10
+        );
+        return ResponseEntity.ok(Map.of("success", true, "data", res));
+    }
+
+    @PatchMapping("/sales-orders/{id}")
+    public ResponseEntity<Map<String, Object>> patchSalesOrder(@PathVariable Long id, @RequestBody(required = false) Map<String, Object> body) {
+        if (body != null && body.containsKey("status")) {
+            String st = (String) body.get("status");
+            jdbcTemplate.update("UPDATE sale_orders SET status = ?, updated_at = NOW() WHERE id = ?", st, id);
+        }
+        return getSalesOrderDetail(id);
     }
 
     // 3. TRANG TỔNG QUAN HÔM NAY (TODAY OVERVIEW) CHUẨN ĐÚNG TODAYDATA

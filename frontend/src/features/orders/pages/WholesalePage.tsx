@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { usePageTitle } from "@/context/PageTitleContext"
 import type { Order, OrderItem } from "../types"
 import { OrderToolbar } from "../components/OrderToolbar"
 import { OrderTable } from "../components/OrderTable"
 import { OrderDetailDialog } from "../components/OrderDetailDialog"
+import { SalesOrderCancelDialog } from "../components/SalesOrderCancelDialog"
 import { Button } from "@/components/ui/button"
 import { DATA_TABLE_SCROLL_CLASS, DATA_TABLE_SHELL_CLASS } from "@/lib/data-table-layout"
 import { useRetailSalesHistoryListQuery } from "../hooks/useRetailSalesHistoryListQuery"
@@ -12,8 +13,11 @@ import {
   getRetailHistoryListSortLabel,
   getSalesOrderDetail,
   mapSalesOrderDetailLineDtoToOrderItem,
+  postCancelSalesOrder,
+  RETAIL_SALES_HISTORY_LIST_QUERY_KEY,
   type RetailHistoryListSort,
 } from "../api/salesOrdersApi"
+import { toast } from "sonner"
 
 export function WholesalePage() {
   const { setTitle } = usePageTitle()
@@ -41,8 +45,25 @@ export function WholesalePage() {
     totalPages,
   } = useRetailSalesHistoryListQuery()
 
+  const queryClient = useQueryClient()
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
+  const [orderToCancel, setOrderToCancel] = useState<Order | null>(null)
+  const [isCancelOpen, setIsCancelOpen] = useState(false)
+
+  const handleConfirmCancel = async (reason: string) => {
+    if (!orderToCancel) return
+    try {
+      await postCancelSalesOrder(orderToCancel.id, { reason })
+      toast.success(`Đã hủy đơn hàng ${orderToCancel.orderCode}`)
+      await queryClient.invalidateQueries({ queryKey: [...RETAIL_SALES_HISTORY_LIST_QUERY_KEY] })
+      await queryClient.invalidateQueries({ queryKey: ["sales-orders", "detail", orderToCancel.id] })
+      setIsCancelOpen(false)
+      setIsDetailOpen(false)
+    } catch {
+      toast.error("Không thể hủy đơn hàng")
+    }
+  }
 
   useEffect(() => {
     setTitle("Lịch sử hóa đơn")
@@ -154,9 +175,20 @@ export function WholesalePage() {
         order={selectedOrder}
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}
-        readOnly
+        readOnly={selectedOrder?.status === "Cancelled"}
+        onCancelOrder={(ord) => {
+          setOrderToCancel(ord)
+          setIsCancelOpen(true)
+        }}
         detailLines={detailLines}
         detailDto={detailQuery.data ?? undefined}
+      />
+
+      <SalesOrderCancelDialog
+        order={orderToCancel}
+        open={isCancelOpen}
+        onOpenChange={setIsCancelOpen}
+        onConfirm={handleConfirmCancel}
       />
     </div>
   )
