@@ -223,10 +223,16 @@ public class GeneralCompatController {
             for (Map<String, Object> det : details) {
                 int pId = ((Number) det.get("product_id")).intValue();
                 double q = ((Number) det.get("quantity")).doubleValue();
-                jdbcTemplate.update(
-                    "UPDATE inventory SET quantity = quantity + ?, updated_at = NOW() WHERE product_id = ?",
-                    q, pId
-                );
+                jdbcTemplate.update("""
+                    UPDATE inventory 
+                    SET quantity = quantity + ?, updated_at = NOW() 
+                    WHERE id = (
+                        SELECT id FROM inventory 
+                        WHERE product_id = ? 
+                        ORDER BY id ASC 
+                        LIMIT 1
+                    )
+                """, q, pId);
             }
         } catch (Exception ignored) {}
 

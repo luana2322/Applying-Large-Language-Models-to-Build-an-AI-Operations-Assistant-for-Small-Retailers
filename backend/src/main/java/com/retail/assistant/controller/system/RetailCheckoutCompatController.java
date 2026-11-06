@@ -124,11 +124,24 @@ public class RetailCheckoutCompatController {
                     VALUES (?, ?, ?, ?, ?, ?)
                 """, orderId, pId, q, p, lt, q);
 
-                // Trừ tồn kho
-                jdbcTemplate.update("""
-                    UPDATE inventory SET quantity = GREATEST(0, quantity - ?), updated_at = NOW()
-                    WHERE product_id = ?
-                """, q, pId);
+                // Trừ tồn kho thực tế theo từng lô (FIFO)
+                List<Map<String, Object>> invRows = jdbcTemplate.queryForList(
+                    "SELECT id, quantity FROM inventory WHERE product_id = ? AND quantity > 0 ORDER BY id ASC",
+                    pId
+                );
+                double remaining = q;
+                for (Map<String, Object> inv : invRows) {
+                    if (remaining <= 0) break;
+                    long invId = ((Number) inv.get("id")).longValue();
+                    double currentQty = ((Number) inv.get("quantity")).doubleValue();
+                    double deduct = Math.min(currentQty, remaining);
+                    jdbcTemplate.update("UPDATE inventory SET quantity = quantity - ?, updated_at = NOW() WHERE id = ?", deduct, invId);
+                    remaining -= deduct;
+                }
+                if (remaining > 0 && !invRows.isEmpty()) {
+                    long lastId = ((Number) invRows.get(invRows.size() - 1).get("id")).longValue();
+                    jdbcTemplate.update("UPDATE inventory SET quantity = GREATEST(0, quantity - ?), updated_at = NOW() WHERE id = ?", remaining, lastId);
+                }
             }
         } catch (Exception e) {
             e.printStackTrace();

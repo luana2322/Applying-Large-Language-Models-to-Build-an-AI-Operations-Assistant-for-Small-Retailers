@@ -42,6 +42,21 @@ public class PosProductCompatController {
             }
         } catch (Exception ignored) {}
 
+        // Load REAL-TIME stock from inventory table
+        Map<Long, Double> stockByProduct = new HashMap<>();
+        try {
+            List<Map<String, Object>> stockRows = jdbcTemplate.queryForList("""
+                SELECT product_id, COALESCE(SUM(quantity), 0) as total_qty
+                FROM inventory
+                GROUP BY product_id
+            """);
+            for (Map<String, Object> sr : stockRows) {
+                Long pId = ((Number) sr.get("product_id")).longValue();
+                double tq = ((Number) sr.get("total_qty")).doubleValue();
+                stockByProduct.put(pId, tq);
+            }
+        } catch (Exception ignored) {}
+
         List<Map<String, Object>> items = new ArrayList<>();
 
         for (Product p : all) {
@@ -97,9 +112,10 @@ public class PosProductCompatController {
             row.put("skuCode", p.getSkuCode() != null ? p.getSkuCode() : "SKU-" + p.getId());
             row.put("barcode", p.getBarcode() != null ? p.getBarcode() : "893600" + p.getId());
             row.put("unitId", 1);
+            double realStock = stockByProduct.getOrDefault(p.getId(), 0.0);
             row.put("unitName", baseUnit);
             row.put("unitPrice", basePrice);
-            row.put("availableQty", 50);
+            row.put("availableQty", Math.max(0, realStock));
             row.put("imageUrl", p.getImageUrl() != null ? p.getImageUrl() : "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=400");
             row.put("availableUnits", units);
 

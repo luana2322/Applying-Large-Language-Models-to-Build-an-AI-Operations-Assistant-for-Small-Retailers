@@ -86,11 +86,14 @@ export function EmployeeTable({
           data.map((item) => {
             const isSelected = selectedIds.includes(item.id)
             const initials = item.fullName
-              .split(" ")
+              .replace(/\(.*?\)/g, "")
+              .trim()
+              .split(/\s+/)
               .filter(Boolean)
               .slice(-2)
               .map((name) => name[0])
               .join("")
+              .toUpperCase() || "NV"
 
             return (
               <TableRow

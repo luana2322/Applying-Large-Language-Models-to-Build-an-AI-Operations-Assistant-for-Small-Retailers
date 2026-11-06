@@ -7,6 +7,7 @@ import com.retail.assistant.domain.repository.catalog.CategoryRepository;
 import com.retail.assistant.domain.repository.catalog.ProductRepository;
 import com.retail.assistant.domain.repository.inventory.InventoryRepository;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -18,13 +19,16 @@ public class ProductCompatController {
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
     private final InventoryRepository inventoryRepository;
+    private final JdbcTemplate jdbcTemplate;
 
     public ProductCompatController(ProductRepository productRepository,
                                    CategoryRepository categoryRepository,
-                                   InventoryRepository inventoryRepository) {
+                                   InventoryRepository inventoryRepository,
+                                   JdbcTemplate jdbcTemplate) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
         this.inventoryRepository = inventoryRepository;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @GetMapping("/products")
@@ -34,6 +38,21 @@ public class ProductCompatController {
             @RequestParam(required = false) String search,
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) String status) {
+
+        // Query real-time total stock by product
+        Map<Long, Double> stockByProduct = new HashMap<>();
+        try {
+            List<Map<String, Object>> stockRows = jdbcTemplate.queryForList("""
+                SELECT product_id, COALESCE(SUM(quantity), 0) as total_qty
+                FROM inventory
+                GROUP BY product_id
+            """);
+            for (Map<String, Object> sr : stockRows) {
+                Long pId = ((Number) sr.get("product_id")).longValue();
+                double tq = ((Number) sr.get("total_qty")).doubleValue();
+                stockByProduct.put(pId, tq);
+            }
+        } catch (Exception ignored) {}
 
         List<Product> all = productRepository.findAll();
         List<Map<String, Object>> items = new ArrayList<>();
@@ -63,10 +82,9 @@ public class ProductCompatController {
             item.put("imageUrl", p.getImageUrl());
             item.put("status", p.getStatus() != null ? p.getStatus() : "ACTIVE");
             
-            // Current stock
-            List<Inventory> invs = inventoryRepository.findByProductId(p.getId());
-            int stock = invs.stream().mapToInt(inv -> inv.getQuantity() != null ? inv.getQuantity().intValue() : 0).sum();
-            item.put("currentStock", stock);
+            // Current real-time stock
+            double stock = stockByProduct.getOrDefault(p.getId(), 0.0);
+            item.put("currentStock", (int) Math.round(stock));
             item.put("currentPrice", p.getSellingPrice() != null ? p.getSellingPrice() : 0.0);
             item.put("createdAt", p.getCreatedAt() != null ? p.getCreatedAt().toString() : "");
             item.put("updatedAt", p.getUpdatedAt() != null ? p.getUpdatedAt().toString() : "");

@@ -66,7 +66,8 @@ const PAGE_TITLE_VI: Record<string, string> = {
 }
 
 function initialsFromName(name: string): string {
-  const p = name.trim().split(/\s+/).filter(Boolean)
+  const clean = name.replace(/\(.*?\)/g, "").trim()
+  const p = clean.split(/\s+/).filter(Boolean)
   if (p.length === 0) return "?"
   if (p.length === 1) return p[0].slice(0, 2).toUpperCase()
   return (p[0][0] + p[p.length - 1][0]).toUpperCase()
