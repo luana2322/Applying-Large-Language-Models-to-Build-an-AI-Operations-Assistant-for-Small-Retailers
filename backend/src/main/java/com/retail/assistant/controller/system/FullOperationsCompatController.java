@@ -360,7 +360,7 @@ public class FullOperationsCompatController {
         for (User u : all) {
             Map<String, Object> m = new HashMap<>();
             m.put("id", u.getId());
-            m.put("employeeCode", "NV-00" + u.getId());
+            m.put("employeeCode", u.getStaffCode() != null ? u.getStaffCode() : "NV-00" + u.getId());
             m.put("fullName", u.getFullName() != null ? u.getFullName() : u.getUsername());
             m.put("email", u.getEmail());
             m.put("phone", u.getPhone());

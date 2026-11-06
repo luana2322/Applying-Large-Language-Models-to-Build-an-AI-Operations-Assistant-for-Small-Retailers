@@ -22,7 +22,7 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> request) {
-        String email = request.getOrDefault("email", "owner@diennuocminhthanh.vn").trim();
+        String email = request.getOrDefault("email", "owner@diennuoc.vn").trim();
         String password = request.getOrDefault("password", "123456");
 
         // Tra cứu user trong Postgres
@@ -38,7 +38,7 @@ public class AuthController {
         Map<String, Object> userMap = new HashMap<>();
         String roleStr = "Owner";
         String fullName = "Nguyễn Thị Lan (Chủ cửa hàng)";
-        String username = "owner";
+        String username = "owner@diennuoc.vn";
         int userId = 10;
         String userEmail = email;
 
@@ -60,13 +60,13 @@ public class AuthController {
             // Fallback theo email nếu không tìm thấy
             if (email.contains("staff") || email.contains("minh")) {
                 roleStr = "Staff";
-                fullName = "Trần Văn Minh (Thu ngân)";
-                username = "staff";
+                fullName = "Trần Văn Minh (Nhân viên)";
+                username = "staff@diennuoc.vn";
                 userId = 11;
             } else {
                 roleStr = "Owner";
                 fullName = "Nguyễn Thị Lan (Chủ cửa hàng)";
-                username = "owner";
+                username = "owner@diennuoc.vn";
                 userId = 10;
             }
         }
