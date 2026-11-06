@@ -76,7 +76,7 @@ export function POSProductSelector() {
       if ((lastPage.items?.length ?? 0) < POS_PAGE_LIMIT) return undefined
       return allPages.length + 1
     },
-    staleTime: 30_000,
+    staleTime: 0,
   })
 
   useEffect(() => {

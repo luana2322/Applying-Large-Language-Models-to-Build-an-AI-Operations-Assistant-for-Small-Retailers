@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import type { InventoryItem, InventoryFilters, InventoryKPIs } from "../types"
 import { toast } from "sonner"
+import { syncAllInventoryAndOrders } from "@/lib/querySync"
 import {
   buildInventoryBulkPatchItems,
   buildInventoryPatchBody,
@@ -322,9 +323,7 @@ export function StockPage() {
       try {
         const created = await postStockReceipt(body)
         toast.success(`Đã tạo phiếu nhập ${created.receiptCode ?? ""}`.trim())
-        await queryClient.invalidateQueries({ queryKey: ["stock-receipts", "v1", "list"] })
-        await queryClient.invalidateQueries({ queryKey: ["inventory", "v1", "list"] })
-        await queryClient.invalidateQueries({ queryKey: ["inventory", "v1", "summary"] })
+        await syncAllInventoryAndOrders(queryClient)
         setSelectedIds([])
         navigate(`/inventory/inbound?highlight=${created.id}`)
       }
@@ -341,9 +340,7 @@ export function StockPage() {
       try {
         const created = await postStockDispatch(body)
         toast.success(`Đã tạo phiếu xuất ${created.dispatchCode}`)
-        await queryClient.invalidateQueries({ queryKey: ["stock-dispatches", "v1", "list"] })
-        await queryClient.invalidateQueries({ queryKey: ["inventory", "v1", "list"] })
-        await queryClient.invalidateQueries({ queryKey: ["inventory", "v1", "summary"] })
+        await syncAllInventoryAndOrders(queryClient)
         setSelectedIds([])
         navigate(`/inventory/dispatch?highlight=${created.id}`)
       }
@@ -379,9 +376,7 @@ export function StockPage() {
       try {
         await patchInventory(after.id, body)
         toast.success("Đã cập nhật thông tin tồn kho")
-        await queryClient.invalidateQueries({ queryKey: ["inventory", "v1", "list"] })
-        await queryClient.invalidateQueries({ queryKey: ["inventory", "v1", "summary"] })
-        await queryClient.invalidateQueries({ queryKey: ["inventory", "v1", "detail"] })
+        await syncAllInventoryAndOrders(queryClient)
         setIsEditDialogOpen(false)
         setItemsToEdit([])
         setSelectedIds([])
@@ -411,9 +406,7 @@ export function StockPage() {
     try {
       await patchBulkInventory(pendingBulkItems)
       toast.success("Đã cập nhật thông tin tồn kho (hàng loạt)")
-      await queryClient.invalidateQueries({ queryKey: ["inventory", "v1", "list"] })
-      await queryClient.invalidateQueries({ queryKey: ["inventory", "v1", "summary"] })
-      await queryClient.invalidateQueries({ queryKey: ["inventory", "v1", "detail"] })
+      await syncAllInventoryAndOrders(queryClient)
       setBulkConfirmOpen(false)
       setIsEditDialogOpen(false)
       setItemsToEdit([])

@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogD
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
+import { syncAllInventoryAndOrders } from "@/lib/querySync"
 
 import { DispatchTable } from "../components/DispatchTable"
 import { DispatchDetailDialog } from "../components/DispatchDetailDialog"
@@ -123,8 +124,7 @@ export function DispatchPage() {
     mutationFn: async () => approveStockDispatch(selectedDispatch!.id),
     onSuccess: async () => {
       toast.success("Đã duyệt phiếu — chuyển chờ xuất")
-      await queryClient.invalidateQueries({ queryKey: ["stock-dispatch-detail", selectedDispatch!.id] })
-      await queryClient.invalidateQueries({ queryKey: ["stock-dispatches", "v1", "list"] })
+      await syncAllInventoryAndOrders(queryClient)
     },
     onError: (e: unknown) => {
       if (e instanceof ApiRequestError) {
@@ -148,8 +148,7 @@ export function DispatchPage() {
       setDeleteReason("")
       setIsPanelOpen(false)
       setSelectedDispatch(null)
-      await queryClient.invalidateQueries({ queryKey: ["stock-dispatches", "v1", "list"] })
-      await queryClient.invalidateQueries({ queryKey: ["stock-dispatch-detail"] })
+      await syncAllInventoryAndOrders(queryClient)
     },
     onError: (e) => {
       if (e instanceof ApiRequestError) {
@@ -241,7 +240,7 @@ export function DispatchPage() {
         })),
       })
       toast.success(`Đã tạo phiếu ${created.dispatchCode}`)
-      await queryClient.invalidateQueries({ queryKey: ["stock-dispatches", "v1", "list"] })
+      await syncAllInventoryAndOrders(queryClient)
       navigate(`/inventory/dispatch?highlight=${created.id}`)
     }
     catch (e) {
@@ -443,10 +442,7 @@ export function DispatchPage() {
           (selectedDispatch?.userId === currentUserId) || isAdmin || isOwner
         }
         onAfterWorkflowAction={async () => {
-          if (selectedDispatch) {
-            await queryClient.invalidateQueries({ queryKey: ["stock-dispatch-detail", selectedDispatch.id] })
-            await queryClient.invalidateQueries({ queryKey: ["stock-dispatches", "v1", "list"] })
-          }
+          await syncAllInventoryAndOrders(queryClient)
         }}
       />
 

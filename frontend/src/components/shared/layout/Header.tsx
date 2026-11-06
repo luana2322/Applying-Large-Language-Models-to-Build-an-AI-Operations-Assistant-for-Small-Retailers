@@ -22,6 +22,7 @@ import {
   type NotificationItemDto,
 } from "@/features/notifications/api/notificationsApi"
 import { formatRelativePastVi } from "@/features/notifications/lib/formatRelativePastVi"
+import { syncAllInventoryAndOrders } from "@/lib/querySync"
 import { ReceiptDetailDialog } from "@/features/inventory/components/ReceiptDetailDialog"
 import { DispatchDetailDialog } from "@/features/inventory/components/DispatchDetailDialog"
 import { getStockReceiptById, mapStockReceiptViewToUi } from "@/features/inventory/api/stockReceiptsApi"
@@ -138,9 +139,7 @@ export function Header() {
     mutationFn: (dispatchId: number) => approveStockDispatch(dispatchId),
     onSuccess: async (_data, dispatchId) => {
       toast.success("Đã duyệt phiếu — chuyển chờ xuất")
-      await queryClient.invalidateQueries({ queryKey: ["stock-dispatch-detail", dispatchId] })
-      await queryClient.invalidateQueries({ queryKey: ["stock-dispatches", "v1", "list"] })
-      await queryClient.invalidateQueries({ queryKey: ["notifications", "list"] })
+      await syncAllInventoryAndOrders(queryClient)
       try {
         const d = await getStockDispatchDetail(dispatchId)
         setHeaderDispatchDetail(d)
@@ -437,8 +436,7 @@ export function Header() {
         canApprove={userCanApproveReceipt}
         isLoadingDetail={false}
         onAfterApprove={async () => {
-          await queryClient.invalidateQueries({ queryKey: ["notifications", "list"] })
-          await queryClient.invalidateQueries({ queryKey: ["stock-receipts"] })
+          await syncAllInventoryAndOrders(queryClient)
         }}
       />
 

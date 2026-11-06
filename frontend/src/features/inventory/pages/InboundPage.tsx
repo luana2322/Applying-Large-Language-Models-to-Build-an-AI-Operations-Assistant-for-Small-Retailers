@@ -24,6 +24,7 @@ import {
 } from "../api/stockReceiptsApi"
 import { ApiRequestError } from "@/lib/api/http"
 import { toast } from "sonner"
+import { syncAllInventoryAndOrders } from "@/lib/querySync"
 import { useAuthStore } from "@/features/auth/store/useAuthStore"
 import { DATA_TABLE_SHELL_CLASS, DATA_TABLE_SCROLL_CLASS } from "@/lib/data-table-layout"
 
@@ -248,8 +249,7 @@ export function InboundPage() {
         setIsPanelOpen(false)
         setSelectedReceipt(null)
       }
-      await queryClient.invalidateQueries({ queryKey: ["stock-receipts", "v1", "list"] })
-      await queryClient.invalidateQueries({ queryKey: ["stock-receipts", "v1", "detail", id] })
+      await syncAllInventoryAndOrders(queryClient)
     } catch (e) {
       if (e instanceof ApiRequestError) {
         const det = e.body?.details
@@ -291,8 +291,7 @@ export function InboundPage() {
         } else {
           toast.success("Đã cập nhật phiếu nhập kho")
         }
-        await queryClient.invalidateQueries({ queryKey: ["stock-receipts", "v1", "list"] })
-        await queryClient.invalidateQueries({ queryKey: ["stock-receipts", "v1", "detail", editingReceipt.id] })
+        await syncAllInventoryAndOrders(queryClient)
       } catch (e) {
         if (e instanceof ApiRequestError) {
           const det = e.body?.details
@@ -329,7 +328,7 @@ export function InboundPage() {
         })),
       })
       toast.success(saveMode === "draft" ? "Đã lưu nháp phiếu nhập kho" : "Đã gửi phiếu chờ duyệt")
-      await queryClient.invalidateQueries({ queryKey: ["stock-receipts", "v1", "list"] })
+      await syncAllInventoryAndOrders(queryClient)
     } catch (e) {
       if (e instanceof ApiRequestError) {
         const det = e.body?.details
@@ -503,9 +502,8 @@ export function InboundPage() {
           canMarkReceived={receiptForDialog ? isReviewerOfReceipt(receiptForDialog) : false}
           canOwnerAccept={isOwner}
           isLoadingDetail={isDetailPending}
-          onAfterApprove={async (receiptId) => {
-            await queryClient.invalidateQueries({ queryKey: ["stock-receipts", "v1", "list"] })
-            await queryClient.invalidateQueries({ queryKey: ["stock-receipts", "v1", "detail", receiptId] })
+          onAfterApprove={async () => {
+            await syncAllInventoryAndOrders(queryClient)
           }}
         />
 
@@ -515,9 +513,8 @@ export function InboundPage() {
           receipt={editingReceipt}
           onSubmit={handleFormSubmit}
           canApprove={userCanApprove}
-          onAfterApproveOrReject={async (receiptId) => {
-            await queryClient.invalidateQueries({ queryKey: ["stock-receipts", "v1", "list"] })
-            await queryClient.invalidateQueries({ queryKey: ["stock-receipts", "v1", "detail", receiptId] })
+          onAfterApproveOrReject={async () => {
+            await syncAllInventoryAndOrders(queryClient)
           }}
         />
       </div>

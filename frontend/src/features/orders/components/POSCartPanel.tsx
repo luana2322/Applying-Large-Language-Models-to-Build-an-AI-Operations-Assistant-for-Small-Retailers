@@ -21,6 +21,7 @@ import {
   SALES_ORDER_LIST_QUERY_KEY,
 } from "../api/salesOrdersApi"
 import { POS_PRODUCTS_SEARCH_QUERY_KEY } from "../api/posProductsApi"
+import { syncAllInventoryAndOrders } from "@/lib/querySync"
 import { CustomerSearchDialog } from "./CustomerSearchDialog"
 import { ReceiptDialog } from "./ReceiptDialog"
 import type { CustomerListItemDto } from "@/features/product-management/api/customersApi"
@@ -113,9 +114,7 @@ export function POSCartPanel() {
       setCashReceivedInput("")
       setPartialDialogOpen(false)
       setPartialReceivedInput("")
-      void queryClient.invalidateQueries({ queryKey: [...SALES_ORDER_LIST_QUERY_KEY] })
-      void queryClient.invalidateQueries({ queryKey: [...RETAIL_SALES_HISTORY_LIST_QUERY_KEY] })
-      void queryClient.invalidateQueries({ queryKey: [...POS_PRODUCTS_SEARCH_QUERY_KEY] })
+      void syncAllInventoryAndOrders(queryClient)
       toast.success(`Thanh toán thành công — ${data.orderCode}`)
     },
     onError: checkoutErrorToast,

@@ -9,6 +9,7 @@ import { OrderDetailDialog } from "../components/OrderDetailDialog"
 import { ReturnFormDialog } from "../components/ReturnFormDialog"
 import { SalesOrderCancelDialog } from "../components/SalesOrderCancelDialog"
 import { toast } from "sonner"
+import { syncAllInventoryAndOrders } from "@/lib/querySync"
 import { Button } from "@/components/ui/button"
 import { useSalesOrdersListQuery } from "../hooks/useSalesOrdersListQuery"
 import {
@@ -116,7 +117,7 @@ export function ReturnsPage() {
     const wasAlreadyCancelled = o.status === "Cancelled"
     try {
       await postCancelSalesOrder(o.id, reason ? { reason } : {})
-      await queryClient.invalidateQueries({ queryKey: [...SALES_ORDER_LIST_QUERY_KEY] })
+      await syncAllInventoryAndOrders(queryClient)
       if (wasAlreadyCancelled) {
         toast.info("Phiếu đã ở trạng thái hủy (OQ-5 — 200 idempotent).")
       } else {
@@ -144,7 +145,7 @@ export function ReturnsPage() {
   const handleCreateReturn = async (body: SalesOrderCreateBody) => {
     try {
       const created = await postSalesOrder(body)
-      await queryClient.invalidateQueries({ queryKey: [...SALES_ORDER_LIST_QUERY_KEY] })
+      await syncAllInventoryAndOrders(queryClient)
       toast.success(`Đã tạo phiếu trả ${created.orderCode}`)
       setIsFormOpen(false)
     } catch (e) {

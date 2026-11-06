@@ -18,6 +18,7 @@ import {
   type RetailHistoryListSort,
 } from "../api/salesOrdersApi"
 import { toast } from "sonner"
+import { syncAllInventoryAndOrders } from "@/lib/querySync"
 
 export function WholesalePage() {
   const { setTitle } = usePageTitle()
@@ -56,8 +57,7 @@ export function WholesalePage() {
     try {
       await postCancelSalesOrder(orderToCancel.id, { reason })
       toast.success(`Đã hủy đơn hàng ${orderToCancel.orderCode}`)
-      await queryClient.invalidateQueries({ queryKey: [...RETAIL_SALES_HISTORY_LIST_QUERY_KEY] })
-      await queryClient.invalidateQueries({ queryKey: ["sales-orders", "detail", orderToCancel.id] })
+      await syncAllInventoryAndOrders(queryClient)
       setIsCancelOpen(false)
       setIsDetailOpen(false)
     } catch {

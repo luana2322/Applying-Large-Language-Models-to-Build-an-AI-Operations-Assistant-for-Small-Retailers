@@ -8,9 +8,11 @@ import App from './App.tsx'
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
+      staleTime: 0, // Dữ liệu luôn đồng bộ real-time giữa các trang/tab, không bị cache cũ
       retry: 1,
-      refetchOnWindowFocus: false,
+      refetchOnWindowFocus: true, // Tự động làm mới khi người dùng quay lại tab trình duyệt
+      refetchOnMount: true, // Tự động tải lại dữ liệu mới nhất khi chuyển trang
+      refetchOnReconnect: true,
     },
   },
 })
