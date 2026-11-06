@@ -170,7 +170,7 @@ public class FullOperationsCompatController {
             m.put("supplierId", r.get("supplier_id") != null ? r.get("supplier_id") : 1);
             m.put("supplierName", r.get("supplier_name") != null ? r.get("supplier_name") : "Công ty Thiết bị Điện Cadivi");
             m.put("staffId", r.get("staff_id"));
-            m.put("staffName", r.get("staff_name") != null ? r.get("staff_name") : "Lê Anh Tuấn (Thủ kho)");
+            m.put("staffName", r.get("staff_name") != null ? r.get("staff_name") : "Trần Văn Minh (Nhân viên)");
             m.put("approvedBy", r.get("approved_by"));
             m.put("approvedByName", r.get("approved_by_name") != null ? r.get("approved_by_name") : "Nguyễn Thị Lan (Chủ cửa hàng)");
             m.put("receiptDate", r.get("receipt_date") != null ? r.get("receipt_date").toString() : "2026-10-25");
@@ -237,7 +237,7 @@ public class FullOperationsCompatController {
         res.put("supplierId", r.get("supplier_id"));
         res.put("supplierName", r.get("supplier_name") != null ? r.get("supplier_name") : "Nhà phân phối Cadivi / Tiền Phong");
         res.put("staffId", r.get("staff_id"));
-        res.put("staffName", r.get("staff_name") != null ? r.get("staff_name") : "Lê Anh Tuấn (Thủ kho)");
+        res.put("staffName", r.get("staff_name") != null ? r.get("staff_name") : "Trần Văn Minh (Nhân viên)");
         res.put("approvedBy", r.get("approved_by"));
         res.put("approvedByName", r.get("approved_by_name") != null ? r.get("approved_by_name") : "Nguyễn Thị Lan (Chủ cửa hàng)");
         res.put("receiptDate", r.get("receipt_date") != null ? r.get("receipt_date").toString() : "2026-10-25");
@@ -275,7 +275,7 @@ public class FullOperationsCompatController {
             m.put("orderCode", d.get("order_code") != null ? d.get("order_code") : "HD-XK-" + d.get("id"));
             m.put("customerName", "Hoàng Văn Nam (Thợ điện nước)");
             m.put("dispatchDate", d.get("dispatch_date") != null ? d.get("dispatch_date").toString() : "2026-10-26");
-            m.put("userName", d.get("user_name") != null ? d.get("user_name") : "Phạm Tiến Dũng (Kỹ thuật & Giao hàng)");
+            m.put("userName", d.get("user_name") != null ? d.get("user_name") : "Trần Văn Minh (Nhân viên)");
             m.put("itemCount", 3);
             m.put("status", d.get("status") != null ? d.get("status") : "Delivered");
             m.put("createdByUserId", d.get("user_id"));
