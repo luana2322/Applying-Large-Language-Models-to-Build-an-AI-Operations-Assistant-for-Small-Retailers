@@ -384,7 +384,7 @@ class GeminiLLMAdapter(BaseLLMAdapter):
     async def generate(self, system_instruction: str, history: List[Dict[str, Any]], message: str, tool_declarations: List[Dict[str, Any]]) -> LLMResponse:
         import google.generativeai as genai
         try:
-            genai.configure(api_key=self.api_key)
+            genai.configure(api_key=self.api_key, transport="rest")
             model_kwargs: Dict[str, Any] = {"model_name": self.model_name, "system_instruction": system_instruction}
             if tool_declarations:
                 model_kwargs["tools"] = [self._build_tool_proto(tool_declarations)]

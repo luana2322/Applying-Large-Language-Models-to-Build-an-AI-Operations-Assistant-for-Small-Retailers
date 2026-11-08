@@ -34,3 +34,4 @@ export async function syncAllInventoryAndOrders(queryClient: QueryClient) {
     queryClient.invalidateQueries({ queryKey: ["notifications"] }),
   ])
 }
+
