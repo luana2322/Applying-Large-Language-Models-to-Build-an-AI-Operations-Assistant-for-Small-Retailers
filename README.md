@@ -159,6 +159,11 @@ Docker Compose sẽ tự động biên dịch và khởi chạy 4 container:
   - Thiết lập định mức tồn kho tối thiểu, cảnh báo thiếu hàng (`isLowStock`) và đề xuất nhập hàng tự động.
   - Hỗ trợ đơn vị quy đổi: Cuộn 100m sang mét, Cây 4m sang mét, Thùng sang m².
 
+### 6.4. Phân Quyền Vai Trò & Chức Năng Hoàn Chỉnh (Role-Based Features)
+- **Nhân viên (Staff):** Đăng nhập/Đăng xuất, Tự đổi mật khẩu & Gửi yêu cầu đặt lại mật khẩu, Quản lý sản phẩm, danh mục, khách hàng, nhà cung cấp, Bán hàng POS, Bán hàng ghi nợ tại quầy, In hóa đơn & VietQR động, Lập phiếu trả hàng, Chốt ca tiền mặt (Shift close), Quản lý tồn kho & vị trí kệ, Tạo phiếu nhập/xuất kho, Lập phiếu kiểm kê, Lập phiếu thu/chi ca, Xem công nợ khách hàng, Báo cáo doanh thu ca.
+- **Chủ cửa hàng (Store Owner):** Toàn quyền truy cập mọi chức năng của nhân viên, Duyệt cấp lại mật khẩu, Quản lý tài khoản & phân quyền nhân sự, Phê duyệt phiếu nhập/xuất & Hủy hóa đơn bán lẻ, Xem lịch sử phê duyệt, Cấu hình cửa hàng, Cấu hình ngưỡng cảnh báo tồn kho, Cấu hình thông báo Telegram tự động, Thiết kế giao diện (Custom Builder), Xem nhật ký hệ thống (Audit logs), Xem sổ cái tài chính & lãi lỗ P&L, Báo cáo mặt hàng bán chạy & tỷ suất lợi nhuận, Dự báo nhu cầu nhập hàng, Sử dụng Trợ lý AI (Tra cứu tự nhiên, vẽ biểu đồ, soạn tin đòi nợ, sinh dự thảo bảng nhập), Mua thêm gói dịch vụ SaaS.
+*(Chi tiết đặc tả đầy đủ có tại [Tài liệu Đặc tả Yêu cầu Phần mềm (SRS v2.0)](docs/SRS_DIEN_NUOC_V2.md)).*
+
 ---
 
 ## 7. Tài liệu Tham khảo
