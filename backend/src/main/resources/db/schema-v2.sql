@@ -1017,6 +1017,68 @@ INSERT INTO services (service_code, name, category, duration_minutes, base_price
 ('SV-CAT-MONG', 'Cắt móng', 'NAIL', 15, 50000.00, 'ALL', TRUE);
 
 -- ============================================================
+-- PHẦN M: BỔ SUNG KIỂM KÊ, CHỐT CA, THANH TOÁN CÔNG NỢ
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS audit_sessions (
+    id SERIAL PRIMARY KEY,
+    audit_code VARCHAR(50) UNIQUE NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    audit_date DATE NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'In Progress',
+    location_filter VARCHAR(255),
+    category_filter VARCHAR(255),
+    notes TEXT,
+    created_by INT REFERENCES users(id),
+    completed_at TIMESTAMP,
+    completed_by INT REFERENCES users(id),
+    cancel_reason TEXT,
+    owner_notes TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS audit_session_lines (
+    id SERIAL PRIMARY KEY,
+    audit_session_id INT NOT NULL REFERENCES audit_sessions(id) ON DELETE CASCADE,
+    inventory_id INT REFERENCES inventory(id),
+    product_id INT NOT NULL REFERENCES products(id),
+    location_id INT REFERENCES locations(id),
+    system_quantity NUMERIC(15,2) NOT NULL DEFAULT 0,
+    actual_quantity NUMERIC(15,2),
+    variance NUMERIC(15,2) DEFAULT 0,
+    variance_percent NUMERIC(8,2) DEFAULT 0,
+    is_counted BOOLEAN DEFAULT FALSE,
+    notes TEXT
+);
+
+CREATE TABLE IF NOT EXISTS daily_cash_closings (
+    id SERIAL PRIMARY KEY,
+    fund_id INT NOT NULL REFERENCES cash_funds(id),
+    business_date DATE NOT NULL,
+    expected_cash NUMERIC(15,2) NOT NULL DEFAULT 0,
+    counted_cash NUMERIC(15,2),
+    variance NUMERIC(15,2),
+    notes TEXT,
+    status VARCHAR(20) NOT NULL DEFAULT 'Open',
+    closed_by INT REFERENCES users(id),
+    closed_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    CONSTRAINT uk_daily_cash_close UNIQUE (fund_id, business_date)
+);
+
+CREATE TABLE IF NOT EXISTS debt_payments (
+    id SERIAL PRIMARY KEY,
+    debt_id BIGINT NOT NULL REFERENCES partner_debts(id) ON DELETE CASCADE,
+    fund_id INT REFERENCES cash_funds(id),
+    amount NUMERIC(15,2) NOT NULL,
+    paid_on DATE NOT NULL DEFAULT CURRENT_DATE,
+    notes TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- ============================================================
 -- HOÀN TẤT
 -- ============================================================
 SELECT 'Database optimization completed successfully!' AS status;

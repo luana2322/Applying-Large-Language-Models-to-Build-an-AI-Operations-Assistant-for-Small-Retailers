@@ -377,4 +377,76 @@ public class GeneralCompatController {
 
         return ResponseEntity.ok(Map.of("success", true, "data", todayData));
     }
+
+    @PostMapping("/sales-orders")
+    public ResponseEntity<Map<String, Object>> createSalesOrder(@RequestBody Map<String, Object> body) {
+        String channel = (String) body.getOrDefault("orderChannel", "Retail");
+        boolean isReturn = "Return".equalsIgnoreCase(channel) || body.containsKey("refSalesOrderId");
+        
+        String prefix = isReturn ? "TH-" : "HD-";
+        String orderCode = (String) body.get("orderCode");
+        if (orderCode == null || orderCode.isBlank()) {
+            orderCode = prefix + System.currentTimeMillis() % 100000;
+        }
+
+        Number custId = (Number) body.getOrDefault("customerId", 1);
+        String custName = (String) body.getOrDefault("customerName", "Khách hàng");
+        double totalAmount = body.get("totalAmount") != null ? ((Number) body.get("totalAmount")).doubleValue() : 0.0;
+        double discountAmount = body.get("discountAmount") != null ? ((Number) body.get("discountAmount")).doubleValue() : 0.0;
+        double finalAmount = body.get("finalAmount") != null ? ((Number) body.get("finalAmount")).doubleValue() : (totalAmount - discountAmount);
+        String dbStatus = isReturn ? "RETURNED" : "DELIVERED";
+        String notes = (String) body.getOrDefault("notes", isReturn ? "Đơn trả hàng" : "Đơn bán lẻ");
+
+        Long orderId = jdbcTemplate.queryForObject("""
+            INSERT INTO sale_orders (order_code, customer_id, user_id, total_amount, discount_amount, final_amount, paid_amount, status, notes, customer_name, created_at, updated_at)
+            VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) RETURNING id
+        """, Long.class, orderCode, custId != null ? custId.longValue() : 1L, totalAmount, discountAmount, finalAmount, finalAmount, dbStatus, notes, custName);
+
+        List<Map<String, Object>> lines = (List<Map<String, Object>>) body.get("lines");
+        if (lines != null && orderId != null) {
+            for (Map<String, Object> line : lines) {
+                Number prodId = (Number) line.get("productId");
+                Number unitId = (Number) line.getOrDefault("unitId", 1);
+                double qty = line.get("quantity") != null ? ((Number) line.get("quantity")).doubleValue() : 1.0;
+                double price = line.get("unitPrice") != null ? ((Number) line.get("unitPrice")).doubleValue() : 0.0;
+                double lineTotal = qty * price;
+
+                if (prodId != null) {
+                    jdbcTemplate.update("""
+                        INSERT INTO order_detail (order_id, product_id, quantity, price_at_time, line_total, dispatched_qty)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, orderId, prodId.longValue(), qty, price, lineTotal, qty);
+
+                    if (isReturn) {
+                        // Trả hàng -> Hoàn tồn kho
+                        jdbcTemplate.update("UPDATE inventory SET quantity = quantity + ?, updated_at = NOW() WHERE product_id = ?", qty, prodId.longValue());
+                        jdbcTemplate.update("INSERT INTO inventory_log (product_id, action_type, quantity_change, reference_note, created_at) VALUES (?, 'RETURN', ?, ?, NOW())",
+                                prodId.longValue(), qty, "Nhập hoàn trả kho theo đơn " + orderCode);
+                    } else {
+                        // Bán lẻ -> Trừ tồn kho
+                        jdbcTemplate.update("UPDATE inventory SET quantity = GREATEST(0, quantity - ?), updated_at = NOW() WHERE product_id = ?", qty, prodId.longValue());
+                        jdbcTemplate.update("INSERT INTO inventory_log (product_id, action_type, quantity_change, reference_note, created_at) VALUES (?, 'OUT', ?, ?, NOW())",
+                                prodId.longValue(), -qty, "Xuất kho bán hàng theo đơn " + orderCode);
+                    }
+                }
+            }
+        }
+
+        Map<String, Object> res = new HashMap<>();
+        res.put("id", orderId != null ? orderId : 1L);
+        res.put("orderCode", orderCode);
+        res.put("customerId", custId);
+        res.put("customerName", custName);
+        res.put("totalAmount", totalAmount);
+        res.put("discountAmount", discountAmount);
+        res.put("finalAmount", finalAmount);
+        res.put("status", dbStatus);
+        res.put("orderChannel", channel);
+        res.put("paymentStatus", "Paid");
+        res.put("notes", notes);
+        res.put("createdAt", java.time.Instant.now().toString());
+        res.put("updatedAt", java.time.Instant.now().toString());
+
+        return ResponseEntity.ok(Map.of("success", true, "data", res));
+    }
 }

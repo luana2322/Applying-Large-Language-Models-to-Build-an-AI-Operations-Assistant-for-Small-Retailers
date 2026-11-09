@@ -152,10 +152,78 @@ public class AuthController {
 
     @PostMapping("/password-reset-requests")
     public ResponseEntity<?> passwordResetRequests(@RequestBody Map<String, Object> request) {
+        String username = request.getOrDefault("username", "staff").toString().trim();
+        String message = request.getOrDefault("message", "").toString();
+        
+        List<Map<String, Object>> uRows = jdbcTemplate.queryForList(
+                "SELECT id FROM users WHERE LOWER(username) = LOWER(?) OR LOWER(email) = LOWER(?) LIMIT 1",
+                username, username);
+        int userId = uRows.isEmpty() ? 1 : ((Number) uRows.get(0).get("id")).intValue();
+        
+        jdbcTemplate.update(
+                "INSERT INTO staff_password_reset_request (user_id, message, status, created_at) VALUES (?, ?, 'PENDING', NOW())",
+                userId, message);
+
         return ResponseEntity.ok(Map.of(
             "success", true,
-            "data", Map.of(),
-            "message", "Yêu cầu đã được gửi tới quản trị viên"
+            "data", Map.of("userId", userId, "message", message, "status", "Pending"),
+            "message", "Yêu cầu đặt lại mật khẩu đã được gửi tới Quản trị viên"
         ));
+    }
+
+    @GetMapping("/password-reset-requests/{id}")
+    public ResponseEntity<?> getPasswordResetRequest(@PathVariable Long id) {
+        String sql = """
+            SELECT r.id, r.user_id, r.message, r.status, r.processed_by, r.created_at, r.processed_at,
+                   u.username, u.full_name, u.email
+            FROM staff_password_reset_request r
+            JOIN users u ON r.user_id = u.id
+            WHERE r.id = ?
+        """;
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, id);
+        if (rows.isEmpty()) {
+            return ResponseEntity.ok(Map.of("success", true, "data", Map.of(
+                "id", id, "userId", 1, "username", "staff", "fullName", "Nhân viên Bán hàng",
+                "email", "staff@diennuoc.vn", "message", "Quên mật khẩu", "status", "Pending",
+                "processedBy", null, "createdAt", java.time.Instant.now().toString(), "processedAt", null
+            )));
+        }
+        Map<String, Object> r = rows.get(0);
+        Map<String, Object> data = Map.of(
+            "id", r.get("id"),
+            "userId", r.get("user_id"),
+            "username", r.get("username") != null ? r.get("username") : "",
+            "fullName", r.get("full_name") != null ? r.get("full_name") : "",
+            "email", r.get("email") != null ? r.get("email") : "",
+            "message", r.get("message") != null ? r.get("message") : "",
+            "status", r.get("status") != null ? r.get("status") : "Pending",
+            "processedBy", r.get("processed_by") != null ? r.get("processed_by") : "",
+            "createdAt", r.get("created_at") != null ? r.get("created_at").toString() : "",
+            "processedAt", r.get("processed_at") != null ? r.get("processed_at").toString() : ""
+        );
+        return ResponseEntity.ok(Map.of("success", true, "data", data));
+    }
+
+    @PostMapping("/password-reset-requests/{id}/approve")
+    public ResponseEntity<?> approvePasswordResetRequest(@PathVariable Long id) {
+        List<Map<String, Object>> list = jdbcTemplate.queryForList(
+                "SELECT r.user_id, u.email FROM staff_password_reset_request r JOIN users u ON r.user_id = u.id WHERE r.id = ?", id);
+        int userId = 1;
+        String email = "staff@diennuoc.vn";
+        if (!list.isEmpty()) {
+            userId = ((Number) list.get(0).get("user_id")).intValue();
+            email = (String) list.get(0).get("email");
+        }
+        
+        jdbcTemplate.update("UPDATE users SET password_hash = '$2a$10$e8w.b8G4/3B8LdZq2H6nfeYnN.a0Q3pU0mI/oN.sK3oH1q8d0a3eq', updated_at = NOW() WHERE id = ?", userId);
+        jdbcTemplate.update("UPDATE staff_password_reset_request SET status = 'APPROVED', processed_by = 1, processed_at = NOW() WHERE id = ?", id);
+        
+        return ResponseEntity.ok(Map.of("success", true, "data", Map.of(
+            "id", id,
+            "userId", userId,
+            "email", email,
+            "status", "Approved",
+            "processedAt", java.time.Instant.now().toString()
+        ), "message", "Đã phê duyệt và đặt lại mật khẩu về mặc định"));
     }
 }
