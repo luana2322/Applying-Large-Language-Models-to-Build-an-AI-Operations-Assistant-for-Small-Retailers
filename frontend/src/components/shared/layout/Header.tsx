@@ -36,6 +36,7 @@ import {
   postPasswordResetApprove,
   type StaffPasswordResetRequestDto,
 } from "@/features/auth/api/authApi"
+import { ChangePasswordDialog } from "@/features/auth/components/ChangePasswordDialog"
 import type { StockDispatch, StockReceipt } from "@/features/inventory/types"
 import type { StockDispatchDetailResponse } from "@/features/inventory/api/dispatchApi"
 import { ApiRequestError } from "@/lib/api/http"
@@ -112,6 +113,7 @@ export function Header() {
   const [headerDispatchOpen, setHeaderDispatchOpen] = useState(false)
   const [passwordResetRequest, setPasswordResetRequest] = useState<StaffPasswordResetRequestDto | null>(null)
   const [passwordResetDialogOpen, setPasswordResetDialogOpen] = useState(false)
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false)
   const [notifBusyId, setNotifBusyId] = useState<number | null>(null)
 
   const notificationsQuery = useQuery({
@@ -409,7 +411,11 @@ export function Header() {
 
           <div className="h-6 w-px bg-slate-200 hidden sm:block" />
 
-          <div className="flex items-center space-x-2 hidden md:flex cursor-pointer hover:opacity-80 transition-opacity">
+          <div
+            onClick={() => setIsChangePasswordOpen(true)}
+            title="Nhấn để đổi mật khẩu"
+            className="flex items-center space-x-2 hidden md:flex cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-md hover:bg-slate-50"
+          >
             <div className="text-right">
               <div className="text-[13px] font-medium text-slate-900 leading-none">
                 {user?.fullName ?? "Người dùng"}
@@ -536,6 +542,11 @@ export function Header() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ChangePasswordDialog
+        open={isChangePasswordOpen}
+        onOpenChange={setIsChangePasswordOpen}
+      />
     </header>
   )
 }

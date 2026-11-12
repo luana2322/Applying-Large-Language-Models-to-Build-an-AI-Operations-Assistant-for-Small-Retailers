@@ -11,15 +11,15 @@ from app.clients.business_api_client import BusinessApiClient
 from app.llm.client import get_llm_adapter
 from app.schemas.chat_request import ChatRequest
 from app.schemas.chat_response import ChatResponse, ToolCallRecord, ChatError
-from app.llm.provider_adapter import LLMToolCall, LLMResponse
+from app.llm.provider_adapter import LLMToolCall, LLMResponse, MockLLMAdapter
 import logging
 
 logger = logging.getLogger(__name__)
 
 class AgentOrchestrator:
-    def __init__(self, business_client: Optional[BusinessApiClient] = None):
+    def __init__(self, llm_adapter: Optional[Any] = None, business_client: Optional[BusinessApiClient] = None):
         self.business_client = business_client or BusinessApiClient()
-        self.llm_adapter = get_llm_adapter()
+        self.llm_adapter = llm_adapter
 
     def _compute_fingerprint(self, name: str, args: Dict[str, Any]) -> str:
         serialized = f"{name}:{json.dumps(args, sort_keys=True)}"
@@ -98,7 +98,7 @@ class AgentOrchestrator:
         total_tool_calls = 0
 
         # Hybrid Intent Router: Tự động phát hiện ý định rõ ràng của người dùng ngay từ turn đầu
-        pre_routed = intent_router.route(request.message)
+        pre_routed = intent_router.route(request.message, last_intent=session.last_intent)
 
         while turn_count < settings.max_turns_per_req:
             turn_count += 1
@@ -114,11 +114,14 @@ class AgentOrchestrator:
                 )
             else:
                 try:
-                    llm_response = await self.llm_adapter.generate(
+                    adapter = self.llm_adapter or get_llm_adapter()
+                    # Nếu đã có kết quả tool từ lượt trước, không truyền lại tool_declarations để ép mô hình tổng hợp văn bản trả lời, chống vòng lặp
+                    active_tools = [] if last_tool_data is not None else tool_declarations
+                    llm_response = await adapter.generate(
                         system_instruction=system_instruction,
                         history=history,
                         message=current_message,
-                        tool_declarations=tool_declarations
+                        tool_declarations=active_tools
                     )
                 except Exception as e:
                     logger.error(f"LLM Generation failure: {e}")
@@ -134,13 +137,15 @@ class AgentOrchestrator:
             if not llm_response.is_tool_call or not llm_response.tool_calls:
                 final_answer = llm_response.text or ""
                 context_manager.add_message(request.session_id, "assistant", final_answer)
-                return response_validator.validate_and_normalize(
+                resp = response_validator.validate_and_normalize(
                     request_id=request.request_id,
                     session_id=request.session_id,
                     raw_text=final_answer,
                     tool_records=tool_records,
                     last_tool_data=last_tool_data
                 )
+                session.last_intent = resp.intent
+                return resp
 
             # Handle Tool Calls
             for tc in llm_response.tool_calls:
@@ -196,6 +201,12 @@ class AgentOrchestrator:
                 fp = self._compute_fingerprint(tc.name, tc.arguments)
                 if fp in executed_fingerprints:
                     logger.warning(f"Detected duplicate tool call loop for {tc.name}, concluding response")
+                    tool_records.append(ToolCallRecord(
+                        name=tc.name,
+                        arguments=tc.arguments,
+                        status="rejected",
+                        error="Phát hiện vòng lặp gọi công cụ trùng lặp."
+                    ))
                     break
                 executed_fingerprints.add(fp)
 
@@ -230,7 +241,8 @@ class AgentOrchestrator:
         if last_tool_data is not None:
             summary_msg = f"Dựa trên dữ liệu đã thu thập được từ hệ thống: {json.dumps(last_tool_data, ensure_ascii=False)}, hãy trả lời ngắn gọn câu hỏi của người dùng bằng tiếng Việt."
             try:
-                final_res = await self.llm_adapter.generate(
+                adapter = self.llm_adapter or get_llm_adapter()
+                final_res = await adapter.generate(
                     system_instruction=system_instruction,
                     history=context_manager.get_history(request.session_id),
                     message=summary_msg,
@@ -238,22 +250,26 @@ class AgentOrchestrator:
                 )
                 if final_res.text:
                     context_manager.add_message(request.session_id, "assistant", final_res.text)
-                    return response_validator.validate_and_normalize(
+                    resp = response_validator.validate_and_normalize(
                         request_id=request.request_id,
                         session_id=request.session_id,
                         raw_text=final_res.text,
                         tool_records=tool_records,
                         last_tool_data=last_tool_data
                     )
+                    session.last_intent = resp.intent
+                    return resp
             except Exception:
                 pass
 
-        return response_validator.validate_and_normalize(
+        resp = response_validator.validate_and_normalize(
             request_id=request.request_id,
             session_id=request.session_id,
             raw_text="Đã xử lý thông tin từ cơ sở dữ liệu cho yêu cầu của bạn.",
             tool_records=tool_records,
             last_tool_data=last_tool_data
         )
+        session.last_intent = resp.intent
+        return resp
 
 orchestrator = AgentOrchestrator()

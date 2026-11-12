@@ -51,6 +51,24 @@ export function OrderDetailDialog({
 
   const lineItems = detailLines !== undefined ? detailLines : mockOrderItems
 
+  const rawNotes = detailDto?.notes || order?.notes || ""
+  let parsedReason = detailDto?.cancelReason || (order as any)?.cancelReason || ""
+  if (!parsedReason && rawNotes) {
+    if (rawNotes.includes("[Hủy đơn: ")) {
+      const start = rawNotes.indexOf("[Hủy đơn: ") + 10
+      const end = rawNotes.indexOf("]", start)
+      parsedReason = end > start ? rawNotes.substring(start, end).trim() : rawNotes.substring(start).trim()
+    } else {
+      parsedReason = rawNotes.trim()
+    }
+  }
+  const cancelReason = parsedReason || "Khách hàng yêu cầu hủy đơn"
+
+  const cancelledByName =
+    detailDto?.cancelledByName ||
+    (order as any)?.cancelledByName ||
+    "Nhân viên (Staff)"
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-full sm:max-w-5xl lg:max-w-5xl max-h-[90vh] overflow-y-auto p-0 gap-0 border-slate-200 shadow-2xl rounded-2xl">
@@ -74,8 +92,10 @@ export function OrderDetailDialog({
                     <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Thanh toán</p>
                     <p className={cn(
                         "text-sm font-black",
-                        order.paymentStatus === "Paid" ? "text-green-600" : "text-amber-500"
-                    )}>{{ Paid: "Đã thanh toán", Unpaid: "Chưa thanh toán", Partial: "Một phần" }[order.paymentStatus] ?? order.paymentStatus}</p>
+                        order.status === "Cancelled"
+                          ? "text-slate-400"
+                          : order.paymentStatus === "Paid" ? "text-green-600" : "text-amber-500"
+                    )}>{{ Paid: "Đã thanh toán", Unpaid: "Chưa thanh toán", Partial: "Một phần", Cancelled: "Đã hủy đơn" }[order.status === "Cancelled" ? "Cancelled" : order.paymentStatus] ?? order.paymentStatus}</p>
                 </div>
                 <div className="text-right">
                     <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Tổng thanh toán</p>
@@ -86,20 +106,8 @@ export function OrderDetailDialog({
         </DialogHeader>
 
         <div className="p-8 pt-6">
-          {/* Progress Tracker / Cancelled Banner */}
-          {order.status === "Cancelled" ? (
-            <div className="flex items-center gap-3 bg-red-50 border border-red-100 rounded-xl p-4 mb-12">
-              <XCircle size={20} className="text-red-500 shrink-0" />
-              <div>
-                <p className="font-semibold text-sm text-red-700">Đơn hàng đã bị huỷ</p>
-                {detailDto?.cancelledAt && (
-                  <p className="text-xs text-red-500 mt-0.5">
-                    Thời điểm huỷ: {formatDate(detailDto.cancelledAt)}
-                  </p>
-                )}
-              </div>
-            </div>
-          ) : (
+          {/* Progress Tracker (ẩn khi đơn đã hủy) */}
+          {order.status !== "Cancelled" && (
             <div className="mb-12 pt-4">
               <div className="flex justify-between relative px-2">
                 <div className="absolute top-1/2 left-0 w-full h-1 bg-slate-100 -translate-y-1/2 z-0 rounded-full" />
@@ -153,9 +161,36 @@ export function OrderDetailDialog({
                             <CreditCard size={12} /> Trạng thái thanh toán
                         </Label>
                         <div className="h-14 bg-slate-50 border border-slate-100 rounded-2xl flex items-center px-5 font-bold text-slate-900 shadow-sm">
-                            {{ Paid: "Đã thanh toán", Unpaid: "Chưa thanh toán", Partial: "Thanh toán một phần" }[order.paymentStatus] ?? order.paymentStatus}
+                            {order.status === "Cancelled" ? "Đã hủy đơn" : ({ Paid: "Đã thanh toán", Unpaid: "Chưa thanh toán", Partial: "Thanh toán một phần" }[order.paymentStatus] ?? order.paymentStatus)}
                         </div>
                     </div>
+
+                    {order.status === "Cancelled" && (
+                      <>
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-red-500 flex items-center gap-2 px-1">
+                            <XCircle size={12} /> Lý do huỷ đơn
+                          </Label>
+                          <div className="min-h-14 bg-red-50/70 border border-red-200 rounded-2xl flex items-center px-5 font-bold text-red-700 shadow-sm py-2">
+                            {cancelReason}
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2 px-1">
+                            <User size={12} /> Người thực hiện huỷ
+                          </Label>
+                          <div className="h-14 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between px-5 font-bold text-slate-900 shadow-sm">
+                            <span>{cancelledByName}</span>
+                            {detailDto?.cancelledAt && (
+                              <span className="text-xs font-normal text-slate-400 font-mono">
+                                {formatDate(detailDto.cancelledAt)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    )}
 
                     {detailDto?.voucherCode && (
                       <div className="space-y-2">

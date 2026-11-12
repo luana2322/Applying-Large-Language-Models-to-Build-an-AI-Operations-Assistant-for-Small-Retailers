@@ -47,8 +47,6 @@ import { CustomRuntimePage } from "./features/custom-builder/pages/CustomRuntime
 import { WarehouseLocationsPage } from "./features/inventory/pages/WarehouseLocationsPage"
 import { ChatBotPage } from "./features/ai/pages/ChatBotPage"
 import { AiUpgradePage } from "./features/ai/pages/AiUpgradePage"
-import { PetsPage } from "./features/pets/pages/PetsPage"
-import { GroomingServicesPage } from "./features/services/pages/GroomingServicesPage"
 import { RecommendationsPage } from "./features/recommendations/pages/RecommendationsPage"
 
 import { PageTitleProvider } from "./context/PageTitleContext"
@@ -110,9 +108,7 @@ function App() {
           <Route path="/orders/wholesale" element={<WholesalePage />} />
           <Route path="/orders/returns" element={<ReturnsPage />} />
 
-          {/* Pet & Services Routes */}
-          <Route path="/pets" element={<PetsPage />} />
-          <Route path="/services" element={<GroomingServicesPage />} />
+          {/* Recommendations Route */}
           <Route path="/recommendations" element={<RecommendationsPage />} />
 
           {/* Approvals hub removed — old URLs redirect */}

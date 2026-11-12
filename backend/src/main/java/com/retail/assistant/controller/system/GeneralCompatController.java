@@ -2,6 +2,7 @@ package com.retail.assistant.controller.system;
 
 import com.retail.assistant.domain.entity.sales.SaleOrder;
 import com.retail.assistant.domain.repository.sales.SaleOrderRepository;
+import com.retail.assistant.security.JwtTokenProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -25,6 +26,7 @@ public class GeneralCompatController {
 
     private final SaleOrderRepository saleOrderRepository;
     private final JdbcTemplate jdbcTemplate;
+    private final JwtTokenProvider jwtTokenProvider;
     private final HttpClient httpClient;
 
     @Value("${telegram.bot.token:9021156914:AAGH7-WiuYcZaHh5tx1YnOA7vK2_dhBWO2k}")
@@ -33,9 +35,10 @@ public class GeneralCompatController {
     @Value("${telegram.chat.id:5062541960}")
     private String telegramChatId;
 
-    public GeneralCompatController(SaleOrderRepository saleOrderRepository, JdbcTemplate jdbcTemplate) {
+    public GeneralCompatController(SaleOrderRepository saleOrderRepository, JdbcTemplate jdbcTemplate, JwtTokenProvider jwtTokenProvider) {
         this.saleOrderRepository = saleOrderRepository;
         this.jdbcTemplate = jdbcTemplate;
+        this.jwtTokenProvider = jwtTokenProvider;
         this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(4)).build();
     }
 
@@ -51,7 +54,7 @@ public class GeneralCompatController {
 
         String sql = """
             SELECT o.id, o.order_code, o.customer_id, o.customer_name, c.name as real_cust_name,
-                   o.total_amount, o.discount_amount, o.final_amount, o.status, o.notes,
+                   o.total_amount, o.discount_amount, o.final_amount, o.paid_amount, o.status, o.notes,
                    COUNT(d.id) as items_count, o.created_at, o.updated_at
             FROM sale_orders o
             LEFT JOIN customers c ON o.customer_id = c.id
@@ -73,6 +76,28 @@ public class GeneralCompatController {
                 if (!match) continue;
             }
 
+            String dbStatus = o.get("status") != null ? o.get("status").toString() : "DELIVERED";
+            String uiStatus = "Delivered";
+            if ("CANCELLED".equalsIgnoreCase(dbStatus)) {
+                uiStatus = "Cancelled";
+            } else if ("RETURNED".equalsIgnoreCase(dbStatus)) {
+                uiStatus = "Returned";
+            } else if ("PENDING".equalsIgnoreCase(dbStatus)) {
+                uiStatus = "Pending";
+            }
+
+            double finalAmt = o.get("final_amount") instanceof Number ? ((Number) o.get("final_amount")).doubleValue() : 0.0;
+            double paidAmt = o.get("paid_amount") instanceof Number ? ((Number) o.get("paid_amount")).doubleValue() : 0.0;
+
+            String payStatus = "Paid";
+            if ("CANCELLED".equalsIgnoreCase(dbStatus)) {
+                payStatus = "Unpaid";
+            } else if (paidAmt <= 0 && finalAmt > 0) {
+                payStatus = "Unpaid";
+            } else if (paidAmt < finalAmt) {
+                payStatus = "Partial";
+            }
+
             Map<String, Object> m = new HashMap<>();
             m.put("id", o.get("id"));
             m.put("orderCode", code);
@@ -80,10 +105,10 @@ public class GeneralCompatController {
             m.put("customerName", custName);
             m.put("totalAmount", o.get("total_amount") != null ? o.get("total_amount") : 0.0);
             m.put("discountAmount", o.get("discount_amount") != null ? o.get("discount_amount") : 0.0);
-            m.put("finalAmount", o.get("final_amount") != null ? o.get("final_amount") : 0.0);
-            m.put("status", o.get("status") != null ? o.get("status") : "Delivered");
+            m.put("finalAmount", finalAmt);
+            m.put("status", uiStatus);
             m.put("orderChannel", orderChannel != null ? orderChannel : "Retail");
-            m.put("paymentStatus", "Paid");
+            m.put("paymentStatus", payStatus);
             m.put("itemsCount", o.get("items_count") != null ? ((Number) o.get("items_count")).intValue() : 1);
             m.put("notes", o.get("notes"));
             m.put("createdAt", o.get("created_at") != null ? o.get("created_at").toString() : "2026-10-30T09:00:00");
@@ -108,10 +133,12 @@ public class GeneralCompatController {
     public ResponseEntity<Map<String, Object>> getSalesOrderDetail(@PathVariable Long id) {
         String sql = """
             SELECT o.id, o.order_code, o.customer_id, o.customer_name, c.name as real_cust_name,
-                   o.total_amount, o.discount_amount, o.final_amount, o.status, o.notes,
+                   o.total_amount, o.discount_amount, o.final_amount, o.paid_amount, o.status, o.notes,
+                   o.cancelled_at, o.cancelled_by, u.full_name as cancelled_by_name,
                    o.created_at, o.updated_at
             FROM sale_orders o
             LEFT JOIN customers c ON o.customer_id = c.id
+            LEFT JOIN users u ON o.cancelled_by = u.id
             WHERE o.id = ?
         """;
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, id);
@@ -125,6 +152,36 @@ public class GeneralCompatController {
         double total = o.get("total_amount") instanceof Number ? ((Number) o.get("total_amount")).doubleValue() : 1650000.0;
         double discount = o.get("discount_amount") instanceof Number ? ((Number) o.get("discount_amount")).doubleValue() : 0.0;
         double finalAmt = o.get("final_amount") instanceof Number ? ((Number) o.get("final_amount")).doubleValue() : total;
+        double paidAmt = o.get("paid_amount") instanceof Number ? ((Number) o.get("paid_amount")).doubleValue() : 0.0;
+
+        String dbStatus = o.get("status") != null ? o.get("status").toString() : "DELIVERED";
+        String uiStatus = "Delivered";
+        if ("CANCELLED".equalsIgnoreCase(dbStatus)) {
+            uiStatus = "Cancelled";
+        } else if ("RETURNED".equalsIgnoreCase(dbStatus)) {
+            uiStatus = "Returned";
+        } else if ("PENDING".equalsIgnoreCase(dbStatus)) {
+            uiStatus = "Pending";
+        }
+
+        String payStatus = "Paid";
+        if ("CANCELLED".equalsIgnoreCase(dbStatus)) {
+            payStatus = "Unpaid";
+        } else if (paidAmt <= 0 && finalAmt > 0) {
+            payStatus = "Unpaid";
+        } else if (paidAmt < finalAmt) {
+            payStatus = "Partial";
+        }
+
+        String rawNotes = (String) o.get("notes");
+        String cancelReason = null;
+        if (rawNotes != null && rawNotes.contains("[Hủy đơn: ")) {
+            int start = rawNotes.indexOf("[Hủy đơn: ") + 10;
+            int end = rawNotes.indexOf("]", start);
+            cancelReason = end > start ? rawNotes.substring(start, end) : rawNotes.substring(start);
+        } else if ("Cancelled".equals(uiStatus)) {
+            cancelReason = rawNotes;
+        }
 
         String linesSql = """
             SELECT d.id, d.product_id, p.sku_code, p.name as product_name,
@@ -177,9 +234,14 @@ public class GeneralCompatController {
         detail.put("totalAmount", total);
         detail.put("discountAmount", discount);
         detail.put("finalAmount", finalAmt);
-        detail.put("status", o.get("status") != null ? o.get("status") : "Delivered");
+        detail.put("status", uiStatus);
         detail.put("orderChannel", "Retail");
-        detail.put("paymentStatus", "Paid");
+        detail.put("paymentStatus", payStatus);
+        detail.put("notes", rawNotes);
+        detail.put("cancelReason", cancelReason);
+        detail.put("cancelledAt", o.get("cancelled_at") != null ? o.get("cancelled_at").toString() : null);
+        detail.put("cancelledBy", o.get("cancelled_by"));
+        detail.put("cancelledByName", o.get("cancelled_by_name") != null ? o.get("cancelled_by_name") : "Nhân viên");
         detail.put("itemsCount", lines.size());
         detail.put("lines", lines);
         detail.put("items", lines);
@@ -190,9 +252,67 @@ public class GeneralCompatController {
     }
 
     @PostMapping("/sales-orders/{id}/cancel")
-    public ResponseEntity<Map<String, Object>> cancelSalesOrder(@PathVariable Long id, @RequestBody(required = false) Map<String, Object> body) {
+    public ResponseEntity<Map<String, Object>> cancelSalesOrder(
+            @PathVariable Long id,
+            @RequestBody(required = false) Map<String, Object> body,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
         String reason = body != null && body.containsKey("reason") ? (String) body.get("reason") : "Khách hàng yêu cầu hủy đơn";
         
+        // Xác định người thực hiện hủy đơn
+        String operatorName = "Trần Văn Minh (Nhân viên)";
+        Long operatorId = null;
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            try {
+                String token = authHeader.substring(7);
+                if (jwtTokenProvider.validateToken(token)) {
+                    String username = jwtTokenProvider.getUsername(token);
+                    String role = jwtTokenProvider.getRole(token);
+                    Long uid = jwtTokenProvider.getUserId(token);
+                    if (uid != null) {
+                        operatorId = uid;
+                        try {
+                            String name = jdbcTemplate.queryForObject("SELECT full_name FROM users WHERE id = ?", String.class, uid);
+                            if (name != null && !name.isBlank()) {
+                                operatorName = name;
+                            } else {
+                                operatorName = ("Owner".equalsIgnoreCase(role) ? "Chủ cửa hàng (" : "Nhân viên (") + username + ")";
+                            }
+                        } catch (Exception e) {
+                            operatorName = ("Owner".equalsIgnoreCase(role) ? "Chủ cửa hàng (" : "Nhân viên (") + username + ")";
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // Nếu không xác định được từ token, lấy người tạo đơn hoặc tài khoản Staff trong CSDL
+        if (operatorId == null) {
+            try {
+                Long orderCreatorId = jdbcTemplate.queryForObject(
+                    "SELECT user_id FROM sale_orders WHERE id = ?", Long.class, id);
+                if (orderCreatorId != null) {
+                    operatorId = orderCreatorId;
+                    String creatorName = jdbcTemplate.queryForObject(
+                        "SELECT full_name FROM users WHERE id = ?", String.class, orderCreatorId);
+                    if (creatorName != null && !creatorName.isBlank()) {
+                        operatorName = creatorName;
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
+        if (operatorId == null) {
+            try {
+                operatorId = jdbcTemplate.queryForObject(
+                    "SELECT u.id FROM users u JOIN roles r ON u.role_id = r.id WHERE r.name = 'STAFF' LIMIT 1", Long.class);
+                operatorName = jdbcTemplate.queryForObject(
+                    "SELECT full_name FROM users WHERE id = ?", String.class, operatorId);
+            } catch (Exception ignored) {
+                operatorId = 11L;
+                operatorName = "Trần Văn Minh (Nhân viên)";
+            }
+        }
+
         // Lấy thông tin đơn hàng trước khi hủy để gửi Telegram
         String orderCode = "HD-" + id;
         String custName = "Khách hàng";
@@ -209,13 +329,13 @@ public class GeneralCompatController {
 
         jdbcTemplate.update("""
             UPDATE sale_orders
-            SET status = 'CANCELLED', cancelled_at = NOW(), cancelled_by = 10,
+            SET status = 'CANCELLED', paid_amount = 0, cancelled_at = NOW(), cancelled_by = ?,
                 notes = COALESCE(notes, '') || ' [Hủy đơn: ' || ? || ']',
                 updated_at = NOW()
             WHERE id = ?
-        """, reason, id);
+        """, operatorId, reason, id);
 
-        // Hoàn lại tồn kho
+        // Hoàn lại tồn kho & ghi inventory_log
         try {
             List<Map<String, Object>> details = jdbcTemplate.queryForList(
                 "SELECT product_id, quantity FROM order_detail WHERE order_id = ?", id
@@ -233,6 +353,11 @@ public class GeneralCompatController {
                         LIMIT 1
                     )
                 """, q, pId);
+
+                jdbcTemplate.update("""
+                    INSERT INTO inventory_log (product_id, action_type, quantity_change, reference_note, created_at)
+                    VALUES (?, 'CANCEL_RESTOCK', ?, ?, NOW())
+                """, pId, q, "Hoàn kho do hủy đơn " + orderCode);
             }
         } catch (Exception ignored) {}
 
@@ -245,10 +370,10 @@ public class GeneralCompatController {
                 "• Mã hóa đơn: %s\n" +
                 "• Khách hàng: %s\n" +
                 "• Trị giá đơn: %,.0f đ\n" +
-                "• Người thao tác: Nhân viên Trần Văn Minh\n" +
+                "• Người thao tác: %s\n" +
                 "👉 Lý do ghi nhận: \"%s\"\n\n" +
-                "✅ Hệ thống đã tự động hoàn lại tồn kho.",
-                timeStr, orderCode, custName, total, reason
+                "✅ Hệ thống đã tự động hoàn lại tồn kho và cập nhật trạng thái hủy.",
+                timeStr, orderCode, custName, total, operatorName, reason
             );
             String requestBody = "chat_id=" + URLEncoder.encode(telegramChatId, StandardCharsets.UTF_8)
                     + "&text=" + URLEncoder.encode(teleMsg, StandardCharsets.UTF_8);

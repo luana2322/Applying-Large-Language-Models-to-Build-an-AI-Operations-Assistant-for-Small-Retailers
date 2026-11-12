@@ -118,6 +118,13 @@ export async function apiJson<T>(path: string, init: ApiJsonOptions = {}): Promi
     if (refreshed) {
       return apiJson<T>(path, { ...init, auth: true, _didRefresh: true })
     }
+    // Token không hợp lệ hoặc hết hạn mà không thể refresh -> Xóa session và chuyển về /login
+    sessionStorage.removeItem("accessToken")
+    sessionStorage.removeItem("refreshToken")
+    sessionStorage.removeItem("user")
+    if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+      window.location.href = "/login"
+    }
   }
 
   return parseApiEnvelopeText<T>(res, raw)
@@ -150,6 +157,12 @@ export async function apiFormData<T>(path: string, getFormData: () => FormData, 
     const refreshed = await tryRefreshAccessToken()
     if (refreshed) {
       return apiFormData<T>(path, getFormData, { ...init, auth: true, _didRefresh: true })
+    }
+    sessionStorage.removeItem("accessToken")
+    sessionStorage.removeItem("refreshToken")
+    sessionStorage.removeItem("user")
+    if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+      window.location.href = "/login"
     }
   }
 

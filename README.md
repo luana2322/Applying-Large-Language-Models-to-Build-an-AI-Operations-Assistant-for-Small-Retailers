@@ -169,4 +169,4 @@ Docker Compose sẽ tự động biên dịch và khởi chạy 4 container:
 ## 7. Tài liệu Tham khảo
 
 - [Tài liệu Đặc tả Yêu cầu Phần mềm (SRS v2.0)](docs/SRS_DIEN_NUOC_V2.md)
-- [Đặc tả Kỹ thuật & Lộ trình Triển khai (Technical Specification & Roadmap)](file:///Users/luana/.gemini/antigravity/brain/61fabcd3-31a8-4c04-a0e3-ac9d1178fc32/DIEN_NUOC_SPECIFICATION_AND_ROADMAP.md)
+- [Đặc tả Kỹ thuật & Lộ trình Triển khai (Technical Specification & Roadmap)](docs/DIEN_NUOC_SPECIFICATION_AND_ROADMAP.md)

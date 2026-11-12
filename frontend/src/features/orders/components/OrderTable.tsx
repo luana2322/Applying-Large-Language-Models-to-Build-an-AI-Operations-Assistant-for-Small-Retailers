@@ -45,6 +45,8 @@ function TypeBadge({ type }: { type: string }) {
 }
 
 function PaymentBadge({ status }: { status: string }) {
+  if (status === 'Cancelled' || status === 'Refunded')
+    return <Badge className="text-xs font-semibold bg-slate-100 text-slate-500 border border-slate-200 shadow-none">Đã hủy</Badge>
   if (status === 'Paid')
     return <Badge className="text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-none">Đã TT</Badge>
   if (status === 'Partial')
@@ -145,7 +147,7 @@ export function OrderTable({
                   {formatCurrency(item.finalAmount)}
                 </TableCell>
                 <TableCell className={cn(ORDER_TABLE_COL.payment, "px-4")}>
-                  <PaymentBadge status={item.paymentStatus} />
+                  <PaymentBadge status={item.status === 'Cancelled' ? 'Cancelled' : item.paymentStatus} />
                 </TableCell>
                 {!hideStatusColumn && (
                   <TableCell className={cn(ORDER_TABLE_COL.status, "px-4 text-center min-w-0")}>

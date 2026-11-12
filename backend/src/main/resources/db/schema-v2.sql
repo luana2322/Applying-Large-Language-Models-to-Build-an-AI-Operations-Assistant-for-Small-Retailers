@@ -1068,6 +1068,84 @@ CREATE TABLE IF NOT EXISTS daily_cash_closings (
     CONSTRAINT uk_daily_cash_close UNIQUE (fund_id, business_date)
 );
 
+CREATE TABLE IF NOT EXISTS product_specifications (
+    id BIGSERIAL PRIMARY KEY,
+    product_id BIGINT REFERENCES products(id) ON DELETE CASCADE,
+    color VARCHAR(50),
+    material VARCHAR(100),
+    dimensions VARCHAR(100),
+    voltage_power VARCHAR(50),
+    finish_style VARCHAR(50),
+    installation_type VARCHAR(100),
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS product_unit_conversions (
+    id BIGSERIAL PRIMARY KEY,
+    product_id BIGINT REFERENCES products(id) ON DELETE CASCADE,
+    base_unit VARCHAR(50) NOT NULL,
+    packaging_unit VARCHAR(50) NOT NULL,
+    conversion_rate NUMERIC(10,4) NOT NULL,
+    is_default_sales_unit BOOLEAN DEFAULT FALSE
+);
+
+CREATE TABLE IF NOT EXISTS customer_projects (
+    id BIGSERIAL PRIMARY KEY,
+    customer_id BIGINT REFERENCES customers(id) ON DELETE CASCADE,
+    project_name VARCHAR(255) NOT NULL,
+    address TEXT,
+    contractor_name VARCHAR(100),
+    contractor_phone VARCHAR(20),
+    start_date DATE DEFAULT CURRENT_DATE,
+    status VARCHAR(50) DEFAULT 'IN_PROGRESS',
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS partner_debts (
+    id BIGSERIAL PRIMARY KEY,
+    partner_type VARCHAR(50) NOT NULL,
+    customer_id BIGINT REFERENCES customers(id),
+    project_id BIGINT REFERENCES customer_projects(id),
+    order_id BIGINT REFERENCES sale_orders(id),
+    total_amount NUMERIC(15,2) NOT NULL,
+    paid_amount NUMERIC(15,2) DEFAULT 0,
+    remaining_amount NUMERIC(15,2) NOT NULL,
+    credit_limit NUMERIC(15,2) DEFAULT 20000000,
+    due_date DATE NOT NULL,
+    overdue_days INT DEFAULT 0,
+    status VARCHAR(50) DEFAULT 'ACTIVE',
+    risk_level VARCHAR(20) DEFAULT 'LOW',
+    notes TEXT,
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS debt_reminders (
+    id BIGSERIAL PRIMARY KEY,
+    debt_id BIGINT REFERENCES partner_debts(id) ON DELETE CASCADE,
+    reminder_level VARCHAR(50) NOT NULL,
+    channel VARCHAR(20) DEFAULT 'ZALO',
+    ai_generated_message TEXT NOT NULL,
+    status VARCHAR(20) DEFAULT 'DRAFT',
+    sent_at TIMESTAMP WITHOUT TIME ZONE,
+    response_notes TEXT,
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS combo_recommendation_rules (
+    id BIGSERIAL PRIMARY KEY,
+    rule_name VARCHAR(255) NOT NULL,
+    trigger_product_type VARCHAR(50) NOT NULL,
+    trigger_color VARCHAR(50),
+    recommended_product_id BIGINT REFERENCES products(id),
+    recommended_role VARCHAR(50) NOT NULL,
+    recommendation_reason TEXT,
+    discount_pct NUMERIC(5,2) DEFAULT 5.0,
+    priority_score INT DEFAULT 1,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS debt_payments (
     id SERIAL PRIMARY KEY,
     debt_id BIGINT NOT NULL REFERENCES partner_debts(id) ON DELETE CASCADE,

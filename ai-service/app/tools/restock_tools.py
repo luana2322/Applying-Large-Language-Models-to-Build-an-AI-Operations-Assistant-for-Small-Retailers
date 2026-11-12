@@ -47,8 +47,10 @@ def init_all_tools():
     from app.tools.sales_tools import register_sales_tools
     from app.tools.profit_tools import register_profit_tools
     from app.tools.inventory_tools import register_inventory_tools
+    from app.tools.dien_nuoc_tools import register_dien_nuoc_tools
 
     register_sales_tools()
     register_profit_tools()
     register_inventory_tools()
     register_restock_and_expense_tools()
+    register_dien_nuoc_tools()

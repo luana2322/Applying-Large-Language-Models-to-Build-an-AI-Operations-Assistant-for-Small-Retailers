@@ -83,7 +83,44 @@ public class StoreChatGatewayController {
                 if (body != null) {
                     JsonNode node = objectMapper.readTree(body);
                     String answer = node.path("answer").asText("");
-                    emitter.send("event: delta_full\ndata: " + answer + "\n\n");
+
+                    // Gửi event progress nếu có tool calls trước khi trả lời
+                    JsonNode toolCalls = node.path("tool_calls");
+                    if (toolCalls.isArray() && toolCalls.size() > 0) {
+                        for (JsonNode tc : toolCalls) {
+                            String toolName = tc.path("name").asText("");
+                            emitter.send("event: progress\ndata: {\"type\":\"tool_result\",\"tool\":\"" + toolName + "\",\"step\":2,\"message\":\"Đã truy xuất dữ liệu từ: " + toolName + "\"}\n\n");
+                        }
+                    }
+
+                    // Typewriter streaming: stream từng cụm từ/ký tự với độ trễ tự nhiên (15-25ms)
+                    // để giao diện hiện chữ từ từ, thân thiện và không bị giật lag
+                    if (!answer.isEmpty()) {
+                        String[] tokens = answer.split("(?<=\\s)|(?<=\\n)");
+                        StringBuilder chunk = new StringBuilder();
+                        int delayMs = answer.length() > 800 ? 15 : 25;
+
+                        for (int i = 0; i < tokens.length; i++) {
+                            chunk.append(tokens[i]);
+                            if (chunk.length() >= 6 || tokens[i].contains("\n") || i == tokens.length - 1) {
+                                String chunkText = chunk.toString();
+                                chunk.setLength(0);
+
+                                StringBuilder sb = new StringBuilder();
+                                sb.append("event: delta\n");
+                                for (String line : chunkText.split("\r?\n", -1)) {
+                                    sb.append("data: ").append(line).append("\n");
+                                }
+                                sb.append("\n");
+                                emitter.send(sb.toString());
+
+                                try {
+                                    Thread.sleep(delayMs);
+                                } catch (InterruptedException ignored) {}
+                            }
+                        }
+                    }
+
                     if (store != null) {
                         persistTurnBestEffort(store, clientRequest, body);
                     }

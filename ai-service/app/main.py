@@ -10,11 +10,14 @@ import logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("retail-ai-service")
 
+# Khởi tạo công cụ ngay khi import module để đảm bảo hoạt động cả trong ASGI test harness
+init_all_tools()
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Initializing AI Service and Tool Registry...")
     init_all_tools()
-    logger.info("All 7 retail tools initialized successfully.")
+    logger.info("All 10 retail tools initialized successfully.")
     yield
     logger.info("Shutting down AI Service.")
 

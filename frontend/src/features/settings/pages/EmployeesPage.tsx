@@ -14,6 +14,7 @@ import { RoleChangeConfirmDialog } from "../components/RoleChangeConfirmDialog"
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { toast } from "sonner"
 import { ApiRequestError } from "@/lib/api/http"
+import { postResetUserPassword } from "@/features/auth/api/authApi"
 import {
   buildUserCreateBody,
   deleteUser,
@@ -58,6 +59,7 @@ export function EmployeesPage() {
 
   // Selection/Confirm states
   const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null)
+  const [resetTarget, setResetTarget] = useState<Employee | null>(null)
   const [isDeletingBulk, setIsDeletingBulk] = useState(false)
 
   // Detail & Form states
@@ -327,6 +329,7 @@ export function EmployeesPage() {
                 canChangeRole={isOwner}
                 changingRoleUserId={changingRoleUserId}
                 onRoleChangeRequest={handleRoleChangeRequest}
+                onResetPassword={isOwner ? (emp) => setResetTarget(emp) : undefined}
               />
             </div>
           </section>
@@ -335,6 +338,23 @@ export function EmployeesPage() {
       </div>
 
       {/* Confirmations */}
+      <ConfirmDialog 
+        open={!!resetTarget}
+        onOpenChange={(open) => !open && setResetTarget(null)}
+        onConfirm={async () => {
+          if (!resetTarget) return
+          try {
+            await postResetUserPassword(resetTarget.id, "123456")
+            toast.success(`Đã đặt lại mật khẩu cho "${resetTarget.fullName}" về mặc định (123456)`)
+            setResetTarget(null)
+          } catch {
+            toast.error("Không thể đặt lại mật khẩu")
+          }
+        }}
+        title="Đặt lại mật khẩu nhân viên"
+        description={`Bạn có chắc muốn đặt lại mật khẩu cho nhân viên "${resetTarget?.fullName}" về mặc định 123456 không?`}
+      />
+
       <ConfirmDialog 
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}

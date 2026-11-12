@@ -46,6 +46,12 @@ class ResponseValidator:
                 intent = "EXPENSE_SUMMARY"
             elif any(tr.name == "get_restock_suggestions" for tr in tool_records):
                 intent = "RESTOCK_SUGGESTION"
+            elif any(tr.name == "search_products" for tr in tool_records):
+                intent = "SEARCH_PRODUCTS"
+            elif any(tr.name == "get_contractor_debts" for tr in tool_records):
+                intent = "CONTRACTOR_DEBTS"
+            elif any(tr.name == "recommend_sanitary_combo" for tr in tool_records):
+                intent = "SANITARY_COMBO"
             elif status == "needs_clarification":
                 intent = "CLARIFICATION_REQUIRED"
             else:

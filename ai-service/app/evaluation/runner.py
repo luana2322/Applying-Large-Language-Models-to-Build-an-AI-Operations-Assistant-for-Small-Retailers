@@ -76,7 +76,9 @@ class MockBusinessApiClient(BusinessApiClient):
 async def run_evaluation_suite(store_id: str = "1", use_offline_mock: bool = True) -> None:
     init_all_tools()
     client = MockBusinessApiClient() if use_offline_mock else BusinessApiClient()
-    runner_orchestrator = AgentOrchestrator(business_client=client)
+    from app.llm.provider_adapter import MockLLMAdapter
+    llm = MockLLMAdapter() if use_offline_mock else None
+    runner_orchestrator = AgentOrchestrator(llm_adapter=llm, business_client=client)
     results = []
 
     print("=====================================================================")

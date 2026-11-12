@@ -45,6 +45,7 @@ import { AiChatQueryTableCard } from "../components/AiChatQueryTableCard"
 import { AiChatEditableTableCard } from "../components/AiChatEditableTableCard"
 import { AiChatClarifyCard } from "../components/AiChatClarifyCard"
 import { AiChatMessageText } from "../components/AiChatMessageText"
+import { AiChatComboActionCard } from "../components/AiChatComboActionCard"
 import { StatusProgressBar } from "../components/StatusProgressBar"
 import type { CatalogDraftTablePayload } from "../api/aiCatalogDraftApi"
 import type { DomainClarifyPayload } from "../api/aiDomainClarifyTypes"
@@ -53,8 +54,10 @@ import type { ArtifactReceiptPayload, InventoryReceiptDraftPayload } from "../ap
 import type { QueryTablePayload } from "../api/aiQueryTableTypes"
 import { cn } from "@/lib/utils"
 import { useTextToSpeech } from "../hooks/useTextToSpeech"
+import { toast } from "sonner"
 
 const AI_CHAT_CONVERSATION_ID_KEY = "ai_chat_conversation_id"
+const AI_CHAT_MESSAGES_KEY = "retail_ai_chat_messages_v1"
 
 const WELCOME_MESSAGE = "Xin chào! Tôi là trợ lý AI Mini ERP. Tôi có thể giúp bạn tra cứu thông tin, phân tích số liệu và quản lý kho hàng. Hãy nhập câu hỏi bằng tiếng Việt."
 
@@ -103,7 +106,20 @@ export function ChatBotPage() {
   const { setTitle } = usePageTitle()
   useEffect(() => { setTitle("Trợ lý ảo AI") }, [setTitle])
 
-  const [messages, setMessages] = useState<ChatMessage[]>([createWelcomeMessage()])
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    try {
+      const saved = window.sessionStorage.getItem(AI_CHAT_MESSAGES_KEY)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to restore chat messages from sessionStorage:", err)
+    }
+    return [createWelcomeMessage()]
+  })
   const [inputValue, setInputValue] = useState("")
   const [interactionMode, setInteractionMode] = useState<AiInteractionMode>("auto")
   const [isTyping, setIsTyping] = useState(false)
@@ -116,6 +132,26 @@ export function ChatBotPage() {
   const [recordingSeconds, setRecordingSeconds] = useState(0)
   const [conversationId, setConversationId] = useState(() => ensureConversationId())
   const [hitlConfirm, setHitlConfirm] = useState<HitlConfirmPayload | null>(null)
+
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const recognitionRef = useRef<any>(null)
+  const speechFinalTranscriptRef = useRef("")
+
+  // Tự động focus vào ô chat khi vào trang
+  useEffect(() => {
+    textareaRef.current?.focus()
+  }, [])
+
+  // Lưu lịch sử chat vào sessionStorage trong phiên làm việc để không bị mất khi chuyển tab
+  useEffect(() => {
+    try {
+      if (messages.length > 0) {
+        window.sessionStorage.setItem(AI_CHAT_MESSAGES_KEY, JSON.stringify(messages))
+      }
+    } catch (e) {
+      // ignore storage quota errors
+    }
+  }, [messages])
 
   const dismissMessage = useCallback((id: string) => {
     setMessages(prev => prev.filter(m => m.id !== id))
@@ -251,18 +287,32 @@ export function ChatBotPage() {
       },
       onDeltaFull: (text) => {
         usesDeltaFull = true
-        // delta_full thay thế toàn bộ nội dung → bỏ mọi delta đang buffer.
         pendingDelta = ""
         cancelFlush()
         if (!firstDeltaReceived) {
           firstDeltaReceived = true
-          
         }
-        setMessages(prev =>
-          prev.map(m =>
-            m.id === assistantId ? { ...m, content: text } : m
+        // Hiệu ứng chữ chạy từ từ (Typewriter) mượt mà
+        const len = text.length
+        if (len <= 20) {
+          setMessages(prev =>
+            prev.map(m => m.id === assistantId ? { ...m, content: text } : m)
           )
-        )
+          return
+        }
+        let cur = 0
+        const step = Math.max(3, Math.ceil(len / 50))
+        const timer = setInterval(() => {
+          cur += step
+          if (cur >= len) {
+            cur = len
+            clearInterval(timer)
+          }
+          const slice = text.slice(0, cur)
+          setMessages(prev =>
+            prev.map(m => m.id === assistantId ? { ...m, content: slice } : m)
+          )
+        }, 16)
       },
       onChart: (spec) => {
         
@@ -369,6 +419,7 @@ export function ChatBotPage() {
         cancelFlush()
         flushPendingDelta()
         setIsTyping(false)
+        setTimeout(() => textareaRef.current?.focus(), 60)
         
         streamRef.current = null
         if (autoSpeak) {
@@ -386,6 +437,7 @@ export function ChatBotPage() {
         cancelFlush()
         pendingDelta = ""
         setIsTyping(false)
+        setTimeout(() => textareaRef.current?.focus(), 60)
         
         setMessages(prev =>
           prev.map(m => (m.id === assistantId ? { ...m, content: message || "Không thể kết nối trợ lý AI." } : m))
@@ -409,7 +461,6 @@ export function ChatBotPage() {
       stop()
       setSpeakingMessageId(null)
     }
-    
 
     const newMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -422,6 +473,10 @@ export function ChatBotPage() {
 
     setMessages((prev) => [...prev, newMessage])
     if (type === "text") setInputValue("")
+
+    setTimeout(() => {
+      textareaRef.current?.focus()
+    }, 40)
 
     const autoSpeakReply = type === "voice"
 
@@ -488,107 +543,103 @@ export function ChatBotPage() {
     
     setRecordingSeconds(0)
     setInputValue("")
+    window.sessionStorage.removeItem(AI_CHAT_MESSAGES_KEY)
     setMessages([createWelcomeMessage()])
     setConversationId(ensureConversationId(true))
+    setTimeout(() => textareaRef.current?.focus(), 50)
   }
 
-  const toggleRecording = async () => {
-    if (isTranscribing || isTyping) return
+  const startVoiceInput = () => {
+    // Ưu tiên Web Speech API chuẩn để nhận diện giọng nói tiếng Việt trực tiếp, tức thì
+    const SpeechRecognitionClass =
+      (window as unknown as { SpeechRecognition?: any; webkitSpeechRecognition?: any }).SpeechRecognition ||
+      (window as unknown as { SpeechRecognition?: any; webkitSpeechRecognition?: any }).webkitSpeechRecognition
 
-    if (isRecording) {
-      mediaRecorderRef.current?.stop()
-      setIsRecording(false)
-      stopRecordingTimers()
+    if (!SpeechRecognitionClass) {
+      toast.info("Trình duyệt không hỗ trợ Web Speech API. Hãy sử dụng Google Chrome hoặc Microsoft Edge để nói tiếng Việt trực tiếp.")
       return
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      micStreamRef.current = stream
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : "audio/webm"
-      const recorder = new MediaRecorder(stream, { mimeType })
-      audioChunksRef.current = []
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data)
+      const recognition = new SpeechRecognitionClass()
+      recognition.lang = "vi-VN"
+      recognition.interimResults = true
+      recognition.continuous = false
+      recognitionRef.current = recognition
+      speechFinalTranscriptRef.current = ""
+
+      recognition.onstart = () => {
+        setIsRecording(true)
+        setRecordingSeconds(0)
+        stopRecordingTimers()
+        recordingTickRef.current = setInterval(() => {
+          setRecordingSeconds((s) => s + 1)
+        }, 1000)
       }
-      recorder.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop())
-        micStreamRef.current = null
+
+      recognition.onresult = (event: any) => {
+        let transcript = ""
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          transcript += event.results[i][0].transcript
+        }
+        if (transcript.trim()) {
+          speechFinalTranscriptRef.current = transcript
+          setInputValue(transcript)
+        }
+      }
+
+      recognition.onerror = (event: any) => {
+        console.warn("Speech recognition error:", event.error)
+        setIsRecording(false)
         stopRecordingTimers()
         setRecordingSeconds(0)
-        const chunks = audioChunksRef.current
-        audioChunksRef.current = []
-        if (chunks.length === 0) return
-        setIsTranscribing(true)
-        try {
-          const webmBlob = new Blob(chunks, { type: mimeType })
-          const { wav: wavBlob, durationSec, peak } = await convertToWav(webmBlob)
-          if (durationSec < MIN_RECORDING_SEC) {
-            throw new TranscribeAudioError(
-              "validation",
-              "Ghi âm quá ngắn. Hãy giữ nút mic và nói ít nhất 1 giây."
-            )
-          }
-          if (peak < MIN_PEAK_AMPLITUDE) {
-            throw new TranscribeAudioError(
-              "validation",
-              "Không phát hiện giọng nói. Hãy nói rõ hơn, gần microphone hơn."
-            )
-          }
-          const { transcript } = await transcribeAudio(wavBlob, { language: "vi" })
-          const voiceUrl = URL.createObjectURL(wavBlob)
-          handleSend(transcript, "voice", { voiceUrl })
-        } catch (err) {
-          const message =
-            err instanceof TranscribeAudioError
-              ? err.message
-              : err instanceof DOMException && err.name === "NotAllowedError"
-                ? "Vui lòng cấp quyền truy cập microphone để sử dụng tính năng ghi âm."
-                : "Không thể chuyển giọng thành văn bản. Vui lòng thử lại."
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: (Date.now() + 1).toString(),
-              role: "assistant",
-              content: message,
-              timestamp: new Date().toISOString(),
-              type: "text",
-            },
-          ])
-        } finally {
-          setIsTranscribing(false)
+        if (event.error === "not-allowed") {
+          toast.error("Vui lòng cấp quyền Microphone trên trình duyệt để sử dụng tính năng nói.")
+        }
+        setTimeout(() => textareaRef.current?.focus(), 50)
+      }
+
+      recognition.onend = () => {
+        setIsRecording(false)
+        stopRecordingTimers()
+        setRecordingSeconds(0)
+        setTimeout(() => textareaRef.current?.focus(), 50)
+
+        const finalSaid = speechFinalTranscriptRef.current.trim()
+        if (finalSaid) {
+          // Tự động đưa câu nói vào AI chat để phân tích ngay
+          handleSend(finalSaid, "voice")
         }
       }
-      recorder.start()
-      mediaRecorderRef.current = recorder
-      setIsRecording(true)
-      setRecordingSeconds(0)
-      recordingTickRef.current = setInterval(() => {
-        setRecordingSeconds((s) => s + 1)
-      }, 1000)
-      recordingTimerRef.current = setTimeout(() => {
-        if (mediaRecorderRef.current?.state === "recording") {
-          mediaRecorderRef.current.stop()
-          setIsRecording(false)
-        }
-      }, MAX_RECORDING_MS)
+
+      recognition.start()
     } catch (err) {
-      const message =
-        err instanceof DOMException && err.name === "NotAllowedError"
-          ? "Vui lòng cấp quyền truy cập microphone để sử dụng tính năng ghi âm."
-          : "Không thể bắt đầu ghi âm. Vui lòng thử lại."
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now().toString(),
-          role: "assistant",
-          content: message,
-          timestamp: new Date().toISOString(),
-          type: "text",
-        },
-      ])
+      console.error("Speech recognition start failed:", err)
+      setIsRecording(false)
+      stopRecordingTimers()
+    }
+  }
+
+  const stopVoiceInput = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop()
+      } catch (e) {
+        // ignore
+      }
+    }
+    setIsRecording(false)
+    stopRecordingTimers()
+    setRecordingSeconds(0)
+    setTimeout(() => textareaRef.current?.focus(), 50)
+  }
+
+  const toggleRecording = () => {
+    if (isTyping || isTranscribing) return
+    if (isRecording) {
+      stopVoiceInput()
+    } else {
+      startVoiceInput()
     }
   }
 
@@ -775,6 +826,9 @@ export function ChatBotPage() {
                   )}
                 </div>
                 ) : null}
+                {msg.role === "assistant" && !hasClarify && (!isTyping || msg.id !== lastAssistantId) && msg.content && (
+                  <AiChatComboActionCard text={msg.content} />
+                )}
                 {hasChart ? (
                   <AiChatChartCard spec={msg.metadata!.chartSpec as Record<string, unknown>} />
                 ) : null}
@@ -874,12 +928,14 @@ export function ChatBotPage() {
              ))}
            </div>
            {isRecording && (
-              <div className="flex items-center justify-between px-4 py-2 bg-rose-50 border border-rose-100 rounded-xl animate-pulse">
+              <div className="flex items-center justify-between px-4 py-2.5 bg-rose-50 border border-rose-200 rounded-xl animate-pulse shadow-sm">
                 <div className="flex items-center gap-3">
-                   <div className="h-2 w-2 bg-rose-500 rounded-full shadow-[0_0_8px_rgba(244,63,94,0.6)]" />
-                   <span className="text-xs font-bold text-rose-600 uppercase tracking-widest">Đang thu âm...</span>
+                   <div className="h-2.5 w-2.5 bg-rose-500 rounded-full shadow-[0_0_8px_rgba(244,63,94,0.8)]" />
+                   <span className="text-xs font-bold text-rose-700 tracking-wide">
+                     Đang lắng nghe tiếng Việt... Hãy nói câu hỏi (ví dụ: &quot;nhà vệ sinh 15 m2 thì nên mua gì&quot;)
+                   </span>
                 </div>
-                <span className="text-xs font-mono font-bold text-rose-500">
+                <span className="text-xs font-mono font-bold text-rose-600 bg-white/80 px-2 py-0.5 rounded-md border border-rose-100">
                   {Math.floor(recordingSeconds / 60)}:{String(recordingSeconds % 60).padStart(2, "0")}
                 </span>
               </div>
@@ -900,10 +956,11 @@ export function ChatBotPage() {
            )}
            <div className="flex items-end gap-2 bg-slate-50 border border-slate-200 rounded-2xl p-2 focus-within:ring-1 focus-within:ring-blue-500/20 focus-within:border-blue-400/50 transition-all duration-300">
             <textarea
+              ref={textareaRef}
               className="flex-1 max-h-32 min-h-[40px] bg-transparent border-none focus:ring-0 text-[15px] py-2 px-3 text-slate-700 placeholder:text-slate-400 resize-none leading-relaxed transition-all"
-              placeholder="Hỏi trợ lý bằng chữ (ví dụ: thống kê đơn hàng, tồn kho)..."
+              placeholder="Hỏi trợ lý bằng giọng nói hoặc gõ chữ (ví dụ: nhà vệ sinh 15 m2 thì nên mua gì)..."
               rows={1}
-              disabled={inputBusy}
+              disabled={inputBusy && !isRecording}
               value={inputValue}
               onChange={(e) => {
                 setInputValue(e.target.value);
@@ -927,12 +984,14 @@ export function ChatBotPage() {
                  disabled={inputBusy && !isRecording}
                  className={`h-10 w-10 transition-all rounded-xl ${
                    isRecording
-                     ? "bg-rose-100 text-rose-600 animate-pulse"
+                     ? "bg-rose-100 text-rose-600 animate-pulse shadow-sm"
                      : isTranscribing
                        ? "bg-blue-100 text-blue-600"
                        : "text-slate-400 hover:text-rose-600 hover:bg-rose-50"
                  }`}
                  onClick={toggleRecording}
+                 title={isRecording ? "Dừng ghi âm & phân tích" : "Nói trực tiếp bằng tiếng Việt (Microphone)"}
+                 aria-label={isRecording ? "Dừng ghi âm & phân tích" : "Nói trực tiếp bằng tiếng Việt (Microphone)"}
                >
                  {isTranscribing ? (
                    <Loader2 className="h-5 w-5 animate-spin" />

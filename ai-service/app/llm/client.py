@@ -38,7 +38,11 @@ class DualResilientLLMAdapter(BaseLLMAdapter):
 
 def get_llm_adapter() -> BaseLLMAdapter:
     provider = settings.llm_provider.lower().strip()
-    
+
+    if provider == "mock":
+        logger.info("Using deterministic Mock LLM Provider (offline/test mode)")
+        return MockLLMAdapter()
+
     # Chuẩn bị local/Ollama adapter
     local_adapter = OpenAILLMAdapter(
         api_key="ollama",
@@ -50,8 +54,11 @@ def get_llm_adapter() -> BaseLLMAdapter:
         logger.info(f"Using Ollama Local LLM Provider ({settings.ollama_model} at {settings.ollama_base_url})")
         return local_adapter
 
-    # Nếu chọn Gemini hoặc có cấu hình Gemini API Key
-    if settings.gemini_api_key and provider in ("gemini", "dual", "hybrid"):
+    if provider == "gemini" and settings.gemini_api_key:
+        logger.info(f"Using Gemini LLM Provider ({settings.gemini_model})")
+        return GeminiLLMAdapter(api_key=settings.gemini_api_key, model_name=settings.gemini_model)
+
+    if settings.gemini_api_key and provider in ("dual", "hybrid"):
         logger.info(f"Initializing DualResilientLLMAdapter with primary Gemini ({settings.gemini_model}) and fallback Ollama ({settings.ollama_model}).")
         gemini_adapter = GeminiLLMAdapter(api_key=settings.gemini_api_key, model_name=settings.gemini_model)
         return DualResilientLLMAdapter(gemini_adapter=gemini_adapter, fallback_adapter=local_adapter)

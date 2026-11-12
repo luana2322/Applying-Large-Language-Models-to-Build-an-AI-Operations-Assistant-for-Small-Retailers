@@ -264,6 +264,8 @@ export type SalesOrderDetailDto = {
   voucherCode?: string | null
   cancelledAt?: string | null
   cancelledBy?: number | null
+  cancelledByName?: string | null
+  cancelReason?: string | null
   createdAt: string
   updatedAt: string
   lines: SalesOrderDetailLineDto[]

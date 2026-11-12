@@ -457,6 +457,7 @@ class OpenAILLMAdapter(BaseLLMAdapter):
             kwargs: Dict[str, Any] = {
                 "model": self.model_name,
                 "messages": _to_provider_messages(system_instruction, history, message),
+                "max_tokens": 2048,
             }
             if tool_declarations:
                 kwargs["tools"] = self._to_openai_tools(tool_declarations)

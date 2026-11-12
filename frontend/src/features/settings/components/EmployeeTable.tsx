@@ -2,7 +2,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Eye, Edit2, Trash2 } from "lucide-react"
+import { Eye, Edit2, Trash2, KeyRound } from "lucide-react"
 import {
   DATA_TABLE_ROOT_CLASS,
   DATA_TABLE_ACTION_HEAD_CLASS,
@@ -31,6 +31,7 @@ interface EmployeeTableProps {
   canChangeRole?: boolean
   changingRoleUserId?: number | null
   onRoleChangeRequest?: (employee: Employee, newRoleId: number, newRoleName: string) => void
+  onResetPassword?: (item: Employee) => void
 }
 
 export function EmployeeTable({ 
@@ -45,6 +46,7 @@ export function EmployeeTable({
   canChangeRole = false,
   changingRoleUserId = null,
   onRoleChangeRequest,
+  onResetPassword,
 }: EmployeeTableProps) {
   const allSelected = data.length > 0 && selectedIds.length === data.length;
   const someSelected = selectedIds.length > 0 && selectedIds.length < data.length;
@@ -174,6 +176,18 @@ export function EmployeeTable({
                     >
                       <Edit2 className="h-4 w-4" />
                     </Button>
+                    {onResetPassword && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => onResetPassword(item)}
+                        title="Đặt lại mật khẩu"
+                        className="text-amber-500 hover:text-amber-700"
+                      >
+                        <KeyRound className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Button
                       type="button"
                       variant="ghost"

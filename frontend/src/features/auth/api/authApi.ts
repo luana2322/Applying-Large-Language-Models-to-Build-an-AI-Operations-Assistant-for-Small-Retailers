@@ -89,3 +89,21 @@ export function postLogout(body: { refreshToken: string }) {
     auth: true,
   })
 }
+
+/** Đổi mật khẩu tài khoản người dùng hiện tại */
+export function postChangePassword(body: { currentPassword: string; newPassword: string }) {
+  return apiJson<Record<string, unknown>>("/api/v1/auth/change-password", {
+    method: "POST",
+    body: JSON.stringify(body),
+    auth: true,
+  })
+}
+
+/** Chủ cửa hàng đặt lại mật khẩu cho nhân viên */
+export function postResetUserPassword(userId: number, newPassword?: string) {
+  return apiJson<Record<string, unknown>>(`/api/v1/auth/users/${userId}/reset-password`, {
+    method: "POST",
+    body: JSON.stringify(newPassword ? { newPassword } : {}),
+    auth: true,
+  })
+}

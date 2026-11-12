@@ -111,4 +111,63 @@ public class ToolDtos {
         int lookback_days,
         List<RestockItemSuggestion> suggestions
     ) {}
+
+    // 8. Search Products (Tra cứu sản phẩm, quy cách, đơn vị tính quy đổi ngành điện nước)
+    public record SearchProductsRequest(String query, String category, Integer limit) {}
+    public record UnitConversionInfo(String packaging_unit, String base_unit, Double conversion_rate, Double stock_in_packaging_unit) {}
+    public record ProductSearchItem(
+        Long product_id,
+        String sku,
+        String name,
+        String category,
+        String base_unit,
+        Double retail_price,
+        Double current_stock,
+        List<UnitConversionInfo> unit_conversions,
+        String specifications
+    ) {}
+    public record SearchProductsData(
+        String query,
+        int total_matches,
+        List<ProductSearchItem> products
+    ) {}
+
+    // 9. Contractor Debts (Sổ nợ thợ công trình & tuổi nợ)
+    public record ContractorDebtsRequest(String status, Long customer_id, Integer limit) {}
+    public record ContractorDebtItem(
+        Long debt_id,
+        Long customer_id,
+        String customer_name,
+        String phone,
+        String project_name,
+        Double total_amount,
+        Double paid_amount,
+        Double remaining_amount,
+        String due_date,
+        Integer overdue_days,
+        String status,
+        String risk_level,
+        String notes
+    ) {}
+    public record ContractorDebtsData(
+        int total_debts,
+        Double total_remaining_amount,
+        List<ContractorDebtItem> debts
+    ) {}
+
+    // 10. Sanitary Combo (Gợi ý combo thiết bị vệ sinh, vòi chậu & gạch ốp)
+    public record SanitaryComboRequest(String color, String installation_type) {}
+    public record TileAdvice(String style, String tile_name, String sku, Double price, String unit, String reason) {}
+    public record AccessoryFitting(String role, String name, String sku, Double price, boolean required, String reason) {}
+    public record SanitaryComboData(
+        String color,
+        String installation_type,
+        Double lavabo_price,
+        List<TileAdvice> tile_recommendations,
+        List<AccessoryFitting> combo_accessories,
+        Double original_total,
+        Double discount_combo_total,
+        Double savings,
+        String discount_pct
+    ) {}
 }

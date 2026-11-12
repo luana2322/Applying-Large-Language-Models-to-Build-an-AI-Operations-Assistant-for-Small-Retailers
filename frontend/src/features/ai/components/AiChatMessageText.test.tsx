@@ -31,6 +31,25 @@ describe("AiChatMessageText", () => {
     expect(screen.getByText("Bước hai")).toBeInTheDocument()
   })
 
+  it("preserves start attribute on ordered lists separated by bullets", () => {
+    const text = `1. Chậu Lavabo
+- Chi tiết chậu
+
+2. Vòi sen
+- Chi tiết vòi
+
+3. Bộ xả xi-phông
+- Chi tiết bộ xả`
+    render(<AiChatMessageText text={text} />)
+    const lists = screen.getAllByRole("list")
+    // Should have ordered lists with start 1, 2, 3
+    const ols = lists.filter((el) => el.tagName.toLowerCase() === "ol")
+    expect(ols).toHaveLength(3)
+    expect(ols[0]).toHaveAttribute("start", "1")
+    expect(ols[1]).toHaveAttribute("start", "2")
+    expect(ols[2]).toHaveAttribute("start", "3")
+  })
+
   it("renders inline strong and inline code", () => {
     render(
       <AiChatMessageText

@@ -24,10 +24,6 @@ public class SaleOrder {
     private Customer customer;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "pet_id")
-    private com.retail.assistant.domain.entity.pet.Pet pet;
-
-    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     private User user;
 
@@ -96,8 +92,6 @@ public class SaleOrder {
     public void setOrderCode(String orderCode) { this.orderCode = orderCode; }
     public Customer getCustomer() { return customer; }
     public void setCustomer(Customer customer) { this.customer = customer; }
-    public com.retail.assistant.domain.entity.pet.Pet getPet() { return pet; }
-    public void setPet(com.retail.assistant.domain.entity.pet.Pet pet) { this.pet = pet; }
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }
     public BigDecimal getTotalAmount() { return totalAmount; }

@@ -1,86 +1,112 @@
 package com.retail.assistant.controller.auth;
 
+import com.retail.assistant.security.JwtTokenProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthController {
 
-    private final JdbcTemplate jdbcTemplate;
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
-    public AuthController(JdbcTemplate jdbcTemplate) {
+    private final JdbcTemplate jdbcTemplate;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtTokenProvider jwtTokenProvider;
+
+    public AuthController(JdbcTemplate jdbcTemplate, PasswordEncoder passwordEncoder, JwtTokenProvider jwtTokenProvider) {
         this.jdbcTemplate = jdbcTemplate;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtTokenProvider = jwtTokenProvider;
     }
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> request) {
-        String email = request.getOrDefault("email", "owner@diennuoc.vn").trim();
-        String password = request.getOrDefault("password", "123456");
+        String email = request.getOrDefault("email", "").trim();
+        String password = request.getOrDefault("password", "").trim();
+
+        if (email.isEmpty() || password.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("success", false, "message", "Email và mật khẩu không được để trống"));
+        }
 
         // Tra cứu user trong Postgres
         String sql = """
-            SELECT u.id, u.username, u.full_name, u.email, r.name as role_name
+            SELECT u.id, u.username, u.password_hash, u.full_name, u.email, u.status, r.name as role_name
             FROM users u
             JOIN roles r ON u.role_id = r.id
-            WHERE LOWER(u.email) = LOWER(?) OR LOWER(u.username) = LOWER(?)
+            WHERE (LOWER(u.email) = LOWER(?) OR LOWER(u.username) = LOWER(?))
+              AND u.deleted_at IS NULL
             LIMIT 1
         """;
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, email, email);
 
-        Map<String, Object> userMap = new HashMap<>();
-        String roleStr = "Owner";
-        String fullName = "Nguyễn Thị Lan (Chủ cửa hàng)";
-        String username = "owner@diennuoc.vn";
-        int userId = 10;
-        String userEmail = email;
+        Map<String, Object> userRow;
 
-        if (!rows.isEmpty()) {
-            Map<String, Object> r = rows.get(0);
-            userId = ((Number) r.get("id")).intValue();
-            username = (String) r.get("username");
-            fullName = (String) r.get("full_name");
-            userEmail = (String) r.get("email");
-            String dbRole = (String) r.get("role_name");
-            if ("STAFF".equalsIgnoreCase(dbRole) || "Groomer".equalsIgnoreCase(dbRole)) {
-                roleStr = "Staff";
-            } else if ("ADMIN".equalsIgnoreCase(dbRole)) {
-                roleStr = "Admin";
-            } else {
-                roleStr = "Owner";
+        if (rows.isEmpty()) {
+            // Seed tài khoản chuẩn nếu chưa tồn tại trong DB (ví dụ môi trường test H2 hoặc dev)
+            userRow = seedDefaultAccountIfApplicable(email, password);
+            if (userRow == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("success", false, "message", "Tài khoản không tồn tại hoặc mật khẩu không chính xác"));
             }
         } else {
-            // Fallback theo email nếu không tìm thấy
-            if (email.contains("staff") || email.contains("minh")) {
-                roleStr = "Staff";
-                fullName = "Trần Văn Minh (Nhân viên)";
-                username = "staff@diennuoc.vn";
-                userId = 11;
+            userRow = rows.get(0);
+        }
+
+        String storedHash = (String) userRow.get("password_hash");
+        String status = (String) userRow.get("status");
+
+        if ("LOCKED".equalsIgnoreCase(status) || "INACTIVE".equalsIgnoreCase(status)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("success", false, "message", "Tài khoản của bạn đã bị khóa hoặc ngừng hoạt động"));
+        }
+
+        // Kiểm tra mật khẩu bằng BCrypt
+        boolean matches = false;
+        if (storedHash != null) {
+            if (storedHash.startsWith("$2a$") || storedHash.startsWith("$2b$") || storedHash.startsWith("$2y$")) {
+                matches = passwordEncoder.matches(password, storedHash);
             } else {
-                roleStr = "Owner";
-                fullName = "Nguyễn Thị Lan (Chủ cửa hàng)";
-                username = "owner@diennuoc.vn";
-                userId = 10;
+                // Fallback nếu dữ liệu seed cũ là plain text
+                matches = storedHash.equals(password);
+                if (matches) {
+                    // Tự động nâng cấp lên BCrypt
+                    jdbcTemplate.update("UPDATE users SET password_hash = ? WHERE id = ?",
+                            passwordEncoder.encode(password), userRow.get("id"));
+                }
             }
         }
 
-        userMap.put("id", userId);
-        userMap.put("username", username);
-        userMap.put("fullName", fullName);
-        userMap.put("email", userEmail);
-        userMap.put("role", roleStr);
+        if (!matches) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("success", false, "message", "Mật khẩu không chính xác"));
+        }
 
-        // Tạo Menu Permissions theo RBAC (Chủ cửa hàng vs Nhân viên)
-        Map<String, Boolean> mp = new HashMap<>();
+        Long userId = ((Number) userRow.get("id")).longValue();
+        String username = (String) userRow.get("username");
+        String fullName = (String) userRow.get("full_name");
+        String userEmail = (String) userRow.get("email");
+        String dbRole = (String) userRow.get("role_name");
+
+        String roleStr = "Staff";
+        if ("ADMIN".equalsIgnoreCase(dbRole)) {
+            roleStr = "Admin";
+        } else if ("OWNER".equalsIgnoreCase(dbRole) || "CHỦ CỬA HÀNG".equalsIgnoreCase(dbRole)) {
+            roleStr = "Owner";
+        }
+
         boolean isOwner = "Owner".equalsIgnoreCase(roleStr) || "Admin".equalsIgnoreCase(roleStr);
 
+        // Tạo Menu Permissions theo RBAC
+        Map<String, Boolean> mp = new HashMap<>();
         mp.put("can_view_dashboard", true);
         mp.put("can_use_ai", true);
         mp.put("can_manage_inventory", true);
@@ -89,60 +115,169 @@ public class AuthController {
         mp.put("can_manage_orders", true);
         mp.put("can_use_custom_entities", true);
 
-        // Các quyền tài chính, duyệt nợ, quản lý nhân viên chỉ cấp cho OWNER
+        // Các quyền quản trị cao cấp chỉ dành cho Owner / Admin
         mp.put("can_approve", isOwner);
-        mp.put("can_view_finance", isOwner); // Ẩn doanh thu & lãi gộp với Staff
-        mp.put("can_manage_staff", isOwner);  // Ẩn quản lý nhân viên với Staff
+        mp.put("can_view_finance", isOwner);
+        mp.put("can_manage_staff", isOwner);
         mp.put("can_configure_alerts", isOwner);
         mp.put("can_manage_custom_builder", isOwner);
 
-        // Tạo JWT token có claim mp (base64) để Frontend tự động ẩn hiện menu
-        String headerB64 = Base64.getUrlEncoder().withoutPadding().encodeToString("{\"alg\":\"HS256\",\"typ\":\"JWT\"}".getBytes(StandardCharsets.UTF_8));
-        
-        StringBuilder payloadJson = new StringBuilder("{");
-        payloadJson.append("\"sub\":\"").append(username).append("\",");
-        payloadJson.append("\"role\":\"").append(roleStr).append("\",");
-        payloadJson.append("\"mp\":{");
-        int count = 0;
-        for (Map.Entry<String, Boolean> entry : mp.entrySet()) {
-            if (count++ > 0) payloadJson.append(",");
-            payloadJson.append("\"").append(entry.getKey()).append("\":").append(entry.getValue());
-        }
-        payloadJson.append("}}");
+        // Tạo JWT access token thật (ký HS256)
+        String accessToken = jwtTokenProvider.generateToken(username, roleStr, userId, mp);
 
-        String payloadB64 = Base64.getUrlEncoder().withoutPadding().encodeToString(payloadJson.toString().getBytes(StandardCharsets.UTF_8));
-        String mockJwt = headerB64 + "." + payloadB64 + ".signature";
+        // Tạo refresh token ngẫu nhiên và lưu vào database
+        String refreshToken = UUID.randomUUID().toString().replace("-", "");
+        try {
+            jdbcTemplate.update("""
+                INSERT INTO refresh_tokens (user_id, token, expires_at, created_at)
+                VALUES (?, ?, NOW() + INTERVAL '7 days', NOW())
+            """, userId, refreshToken);
+        } catch (Exception e) {
+            log.warn("Could not insert refresh token: {}", e.getMessage());
+        }
+
+        // Cập nhật last_login
+        try {
+            jdbcTemplate.update("UPDATE users SET last_login = NOW() WHERE id = ?", userId);
+        } catch (Exception ignored) {}
+
+        Map<String, Object> userMap = new HashMap<>();
+        userMap.put("id", userId);
+        userMap.put("username", username);
+        userMap.put("fullName", fullName);
+        userMap.put("email", userEmail);
+        userMap.put("role", roleStr);
 
         Map<String, Object> data = Map.of(
-            "accessToken", mockJwt,
-            "refreshToken", "refresh-" + mockJwt,
+            "accessToken", accessToken,
+            "refreshToken", refreshToken,
             "user", userMap
         );
 
-        Map<String, Object> envelope = Map.of(
+        return ResponseEntity.ok(Map.of(
             "success", true,
             "data", data,
             "message", "Đăng nhập thành công với vai trò " + roleStr
-        );
+        ));
+    }
 
-        return ResponseEntity.ok(envelope);
+    private Map<String, Object> seedDefaultAccountIfApplicable(String email, String password) {
+        String lower = email.toLowerCase();
+        boolean isOwner = lower.contains("owner") || lower.contains("admin");
+        boolean isStaff = lower.contains("staff") || lower.contains("minh");
+
+        if (!isOwner && !isStaff) {
+            return null;
+        }
+
+        if (!"123456".equals(password)) {
+            return null;
+        }
+
+        String roleName = isOwner ? "OWNER" : "STAFF";
+        int roleId = isOwner ? 3 : 2;
+        String username = isOwner ? "owner@diennuoc.vn" : "staff@diennuoc.vn";
+        String fullName = isOwner ? "Nguyễn Thị Lan (Chủ cửa hàng)" : "Trần Văn Minh (Nhân viên)";
+        String staffCode = isOwner ? "NV-OWNER" : "NV-001";
+        String encodedPass = passwordEncoder.encode(password);
+
+        try {
+            jdbcTemplate.update("""
+                INSERT INTO roles (id, name, description)
+                VALUES (?, ?, ?)
+                ON CONFLICT (id) DO NOTHING
+            """, roleId, roleName, isOwner ? "Chủ cửa hàng" : "Nhân viên bán lẻ");
+
+            Long uid = jdbcTemplate.queryForObject("""
+                INSERT INTO users (username, password_hash, full_name, email, phone, staff_code, role_id, status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, '0901234567', ?, ?, 'ACTIVE', NOW(), NOW())
+                ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash
+                RETURNING id
+            """, Long.class, username, encodedPass, fullName, email, staffCode, roleId);
+
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", uid != null ? uid : 10L);
+            map.put("username", username);
+            map.put("password_hash", encodedPass);
+            map.put("full_name", fullName);
+            map.put("email", email);
+            map.put("status", "ACTIVE");
+            map.put("role_name", roleName);
+            return map;
+        } catch (Exception e) {
+            log.warn("Failed to seed default user: {}", e.getMessage());
+            return null;
+        }
     }
 
     @PostMapping("/refresh")
     public ResponseEntity<?> refresh(@RequestBody Map<String, String> request) {
-        Map<String, Object> data = Map.of(
-            "accessToken", "mock-jwt-token-access-retail-assistant-refreshed",
-            "refreshToken", "mock-jwt-token-refresh-retail-assistant-refreshed"
-        );
+        String refreshToken = request.getOrDefault("refreshToken", "").trim();
+        if (refreshToken.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("success", false, "message", "Refresh token không được để trống"));
+        }
+
+        String sql = """
+            SELECT rt.user_id, u.username, u.full_name, u.email, r.name as role_name
+            FROM refresh_tokens rt
+            JOIN users u ON rt.user_id = u.id
+            JOIN roles r ON u.role_id = r.id
+            WHERE rt.token = ? AND rt.expires_at > NOW() AND rt.deleted_at IS NULL
+            LIMIT 1
+        """;
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, refreshToken);
+
+        if (rows.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("success", false, "message", "Refresh token không hợp lệ hoặc đã hết hạn"));
+        }
+
+        Map<String, Object> r = rows.get(0);
+        Long userId = ((Number) r.get("user_id")).longValue();
+        String username = (String) userRowString(r.get("username"));
+        String roleName = (String) userRowString(r.get("role_name"));
+        String roleStr = ("ADMIN".equalsIgnoreCase(roleName) || "OWNER".equalsIgnoreCase(roleName)) ? "Owner" : "Staff";
+        boolean isOwner = "Owner".equalsIgnoreCase(roleStr) || "Admin".equalsIgnoreCase(roleStr);
+
+        Map<String, Boolean> mp = new HashMap<>();
+        mp.put("can_view_dashboard", true);
+        mp.put("can_use_ai", true);
+        mp.put("can_manage_inventory", true);
+        mp.put("can_manage_products", true);
+        mp.put("can_manage_customers", true);
+        mp.put("can_manage_orders", true);
+        mp.put("can_use_custom_entities", true);
+        mp.put("can_approve", isOwner);
+        mp.put("can_view_finance", isOwner);
+        mp.put("can_manage_staff", isOwner);
+        mp.put("can_configure_alerts", isOwner);
+        mp.put("can_manage_custom_builder", isOwner);
+
+        String newAccessToken = jwtTokenProvider.generateToken(username, roleStr, userId, mp);
+
         return ResponseEntity.ok(Map.of(
             "success", true,
-            "data", data,
-            "message", "Token đã được làm mới"
+            "data", Map.of(
+                "accessToken", newAccessToken,
+                "refreshToken", refreshToken
+            ),
+            "message", "Token đã được làm mới thành công"
         ));
+    }
+
+    private String userRowString(Object val) {
+        return val != null ? val.toString() : "";
     }
 
     @PostMapping("/logout")
     public ResponseEntity<?> logout(@RequestBody(required = false) Map<String, String> request) {
+        if (request != null && request.containsKey("refreshToken")) {
+            String refreshToken = request.get("refreshToken");
+            try {
+                jdbcTemplate.update("UPDATE refresh_tokens SET deleted_at = NOW() WHERE token = ?", refreshToken);
+            } catch (Exception ignored) {}
+        }
         return ResponseEntity.ok(Map.of(
             "success", true,
             "data", Map.of(),
@@ -154,12 +289,12 @@ public class AuthController {
     public ResponseEntity<?> passwordResetRequests(@RequestBody Map<String, Object> request) {
         String username = request.getOrDefault("username", "staff").toString().trim();
         String message = request.getOrDefault("message", "").toString();
-        
+
         List<Map<String, Object>> uRows = jdbcTemplate.queryForList(
                 "SELECT id FROM users WHERE LOWER(username) = LOWER(?) OR LOWER(email) = LOWER(?) LIMIT 1",
                 username, username);
         int userId = uRows.isEmpty() ? 1 : ((Number) uRows.get(0).get("id")).intValue();
-        
+
         jdbcTemplate.update(
                 "INSERT INTO staff_password_reset_request (user_id, message, status, created_at) VALUES (?, ?, 'PENDING', NOW())",
                 userId, message);
@@ -214,16 +349,112 @@ public class AuthController {
             userId = ((Number) list.get(0).get("user_id")).intValue();
             email = (String) list.get(0).get("email");
         }
-        
-        jdbcTemplate.update("UPDATE users SET password_hash = '$2a$10$e8w.b8G4/3B8LdZq2H6nfeYnN.a0Q3pU0mI/oN.sK3oH1q8d0a3eq', updated_at = NOW() WHERE id = ?", userId);
+
+        String defaultHash = passwordEncoder.encode("123456");
+        jdbcTemplate.update("UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?", defaultHash, userId);
         jdbcTemplate.update("UPDATE staff_password_reset_request SET status = 'APPROVED', processed_by = 1, processed_at = NOW() WHERE id = ?", id);
-        
+
         return ResponseEntity.ok(Map.of("success", true, "data", Map.of(
             "id", id,
             "userId", userId,
             "email", email,
             "status", "Approved",
             "processedAt", java.time.Instant.now().toString()
-        ), "message", "Đã phê duyệt và đặt lại mật khẩu về mặc định"));
+        ), "message", "Đã phê duyệt và đặt lại mật khẩu về mặc định 123456"));
+    }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<?> changePassword(
+            @RequestBody Map<String, String> request,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        String oldPassword = request.getOrDefault("oldPassword", request.getOrDefault("currentPassword", "")).trim();
+        String newPassword = request.getOrDefault("newPassword", "").trim();
+        String username = request.getOrDefault("username", request.getOrDefault("email", "")).trim();
+
+        if (newPassword.length() < 6) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "success", false,
+                "message", "Mật khẩu mới phải có ít nhất 6 ký tự"
+            ));
+        }
+
+        // Nếu có Bearer token, lấy username từ token
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String token = authHeader.substring(7);
+            if (jwtTokenProvider.validateToken(token)) {
+                username = jwtTokenProvider.getUsername(token);
+            }
+        }
+
+        if (username.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                "success", false,
+                "message", "Không xác định được danh tính người dùng"
+            ));
+        }
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "SELECT id, password_hash FROM users WHERE (LOWER(username) = LOWER(?) OR LOWER(email) = LOWER(?)) AND deleted_at IS NULL LIMIT 1",
+                username, username);
+
+        if (rows.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "success", false,
+                "message", "Người dùng không tồn tại"
+            ));
+        }
+
+        Map<String, Object> user = rows.get(0);
+        Long userId = ((Number) user.get("id")).longValue();
+        String currentHash = (String) user.get("password_hash");
+
+        boolean matches = false;
+        if (currentHash != null) {
+            if (currentHash.startsWith("$2a$") || currentHash.startsWith("$2b$") || currentHash.startsWith("$2y$")) {
+                matches = passwordEncoder.matches(oldPassword, currentHash);
+            } else {
+                matches = currentHash.equals(oldPassword);
+            }
+        }
+
+        if (!matches) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "success", false,
+                "message", "Mật khẩu hiện tại không chính xác"
+            ));
+        }
+
+        String newHash = passwordEncoder.encode(newPassword);
+        jdbcTemplate.update("UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?", newHash, userId);
+
+        return ResponseEntity.ok(Map.of(
+            "success", true,
+            "message", "Đổi mật khẩu thành công"
+        ));
+    }
+
+    @PostMapping("/users/{id}/reset-password")
+    public ResponseEntity<?> resetUserPassword(
+            @PathVariable Long id,
+            @RequestBody(required = false) Map<String, String> request) {
+        String newPassword = "123456";
+        if (request != null && request.containsKey("newPassword") && !request.get("newPassword").isBlank()) {
+            newPassword = request.get("newPassword").trim();
+        }
+
+        String newHash = passwordEncoder.encode(newPassword);
+        int updated = jdbcTemplate.update("UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?", newHash, id);
+
+        if (updated == 0) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "success", false,
+                "message", "Không tìm thấy người dùng có ID " + id
+            ));
+        }
+
+        return ResponseEntity.ok(Map.of(
+            "success", true,
+            "message", "Đã đặt lại mật khẩu tài khoản thành công về: " + newPassword
+        ));
     }
 }

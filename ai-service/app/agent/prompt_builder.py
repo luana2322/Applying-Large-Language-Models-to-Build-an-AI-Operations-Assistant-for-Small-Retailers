@@ -49,7 +49,8 @@ class PromptBuilder:
             f"3. Khi người dùng hỏi về 'doanh thu', 'bán hàng', 'đơn hàng' -> BẮT BUỘC gọi duy nhất `get_sales_summary`. TUYỆT ĐỐI KHÔNG gọi `get_profit_summary` trừ khi người dùng rõ ràng nhắc đến từ 'lợi nhuận', 'lãi', 'lãi gộp'.\n"
             f"4. Khi người dùng hỏi về 'tồn kho', 'hàng sắp hết', 'hàng hết' -> BẮT BUỘC gọi duy nhất `get_inventory_status` (với status='low_stock').\n"
             f"5. Sau khi nhận được kết quả dữ liệu từ công cụ, BẮT BUỘC TRẢ LỜI NGAY câu kết luận bằng tiếng Việt, TUYỆT ĐỐI KHÔNG gọi lại công cụ lần thứ hai.\n"
-            f"6. LUÔN LUÔN giao tiếp 100% bằng TIẾNG VIỆT trong mọi trường hợp.\n\n"
+            f"6. LUÔN LUÔN giao tiếp 100% bằng TIẾNG VIỆT trong mọi trường hợp.\n"
+            f"7. ĐỊNH DẠNG TIỀN TỆ & CHỮ VIẾT: BẮT BUỘC dùng chữ số thông thường và tiếng Việt chuẩn (ví dụ: '26.200.000 đ' hoặc '26,2 triệu VNĐ'). TUYỆT ĐỐI KHÔNG dùng chữ Hán (như 百万) hay chữ số Ả Rập (như ۲). Luôn kết luận trọn vẹn, không cắt ngang hay bỏ dở câu.\n\n"
         )
         return context_header + self.base_prompt
 

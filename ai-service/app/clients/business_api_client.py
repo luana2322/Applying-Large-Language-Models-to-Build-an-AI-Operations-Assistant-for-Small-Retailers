@@ -20,6 +20,9 @@ class BusinessApiClient:
             "get_slow_moving_products": "/slow-moving-products",
             "get_expense_summary": "/expense-summary",
             "get_restock_suggestions": "/restock-suggestions",
+            "search_products": "/search-products",
+            "get_contractor_debts": "/contractor-debts",
+            "recommend_sanitary_combo": "/sanitary-combo",
         }
 
         if tool_name not in endpoint_map:

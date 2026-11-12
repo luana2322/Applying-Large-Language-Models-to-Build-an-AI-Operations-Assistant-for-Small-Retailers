@@ -26,3 +26,6 @@ app:
     enabled: ${APP_SEED_DATA_ENABLED:true}
   ai:
     max-stored-chars: ${AI_MAX_STORED_CHARS:20000}
+  jwt:
+    secret: ${JWT_SECRET:smart-retail-secret-key-must-be-at-least-256-bits-long-for-hs256-security-2026}
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000}

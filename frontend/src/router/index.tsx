@@ -5,8 +5,6 @@ import { AiAssistantPage } from '../pages/ai-assistant/AiAssistantPage'
 import { DashboardPage } from '../pages/dashboard/DashboardPage'
 import { StockDispatchForm } from '../pages/inventory/dispatch/StockDispatchForm'
 import { POSPage } from '../pages/sales/pos/POSPage'
-import { PetsPage } from '../pages/pets/PetsPage'
-import { GroomingServicesPage } from '../pages/services/GroomingServicesPage'
 import { InventoryPage } from '../pages/inventory/InventoryPage'
 import { FinancePage } from '../pages/finance/FinancePage'
 
@@ -26,14 +24,6 @@ export const router = createBrowserRouter([
       {
         path: 'pos',
         element: <Navigate to="/sales/pos" replace />,
-      },
-      {
-        path: 'pets',
-        element: <PetsPage />,
-      },
-      {
-        path: 'services',
-        element: <GroomingServicesPage />,
       },
       {
         path: 'inventory',

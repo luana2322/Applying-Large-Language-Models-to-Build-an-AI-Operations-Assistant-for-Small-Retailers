@@ -26,6 +26,7 @@ public class InternalBusinessApiController {
     private final InventoryService inventoryService;
     private final ExpenseService expenseService;
     private final RestockService restockService;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     public InternalBusinessApiController(
         StoreRepository storeRepository,
@@ -33,7 +34,8 @@ public class InternalBusinessApiController {
         ProfitService profitService,
         InventoryService inventoryService,
         ExpenseService expenseService,
-        RestockService restockService
+        RestockService restockService,
+        org.springframework.jdbc.core.JdbcTemplate jdbcTemplate
     ) {
         this.storeRepository = storeRepository;
         this.salesService = salesService;
@@ -41,6 +43,7 @@ public class InternalBusinessApiController {
         this.inventoryService = inventoryService;
         this.expenseService = expenseService;
         this.restockService = restockService;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     private Long validateAuthAndStore(String token, String storeIdHeader) {
@@ -163,6 +166,176 @@ public class InternalBusinessApiController {
         Integer lookbackDays = req != null ? req.lookback_days() : 30;
 
         var data = restockService.getRestockSuggestions(storeId, productId, planningDays, lookbackDays);
+        return ResponseEntity.ok(ToolResponse.ok(storeId, data, true));
+    }
+
+    @PostMapping("/search-products")
+    public ResponseEntity<ToolResponse<SearchProductsData>> searchProducts(
+        @RequestHeader(value = "X-Internal-Token", required = false) String token,
+        @RequestHeader(value = "X-Store-Id", required = false) String storeIdHeader,
+        @RequestBody(required = false) SearchProductsRequest req
+    ) {
+        Long storeId = validateAuthAndStore(token, storeIdHeader);
+        String query = req != null && req.query() != null ? req.query().trim() : "";
+        int limit = (req != null && req.limit() != null) ? req.limit() : 10;
+
+        // Tách các từ khóa chính, loại bỏ các từ đệm thông thường
+        String cleanQuery = query.toLowerCase().replaceAll("[^a-z0-9à-ỹ\\.\\s]", " ");
+        String[] words = cleanQuery.trim().split("\\s+");
+        java.util.List<String> keyTokens = new java.util.ArrayList<>();
+        java.util.Set<String> stopWords = java.util.Set.of("con", "còn", "bao", "nhiêu", "may", "mấy", "cuon", "cuộn", "cay", "cây", "cho", "hoi", "hỏi", "san", "sản", "pham", "phẩm");
+        for (String w : words) {
+            if (w.length() >= 2 && !stopWords.contains(w)) {
+                keyTokens.add("%" + w + "%");
+            }
+        }
+        if (keyTokens.isEmpty()) {
+            keyTokens.add("%" + query.toLowerCase() + "%");
+        }
+
+        StringBuilder whereClause = new StringBuilder(" WHERE p.deleted_at IS NULL ");
+        java.util.List<Object> params = new java.util.ArrayList<>();
+        for (String tokenPattern : keyTokens) {
+            whereClause.append(" AND (LOWER(p.name) LIKE ? OR LOWER(p.sku_code) LIKE ? OR LOWER(COALESCE(p.description, '')) LIKE ?)");
+            params.add(tokenPattern);
+            params.add(tokenPattern);
+            params.add(tokenPattern);
+        }
+
+        String pSql = """
+            SELECT p.id, p.name, p.sku_code, COALESCE(p.selling_price, 0) as selling_price, c.name as category_name,
+                   COALESCE(u.unit_name, p.unit, 'Cái') as base_unit,
+                   COALESCE(SUM(i.quantity), 0) as current_stock,
+                   ps.dimensions, ps.material, ps.color
+            FROM products p
+            LEFT JOIN categories c ON p.category_id = c.id
+            LEFT JOIN product_units u ON p.id = u.product_id AND u.is_base_unit = true
+            LEFT JOIN inventory i ON p.id = i.product_id
+            LEFT JOIN product_specifications ps ON p.id = ps.product_id
+        """ + whereClause.toString() + """
+            GROUP BY p.id, p.name, p.sku_code, p.selling_price, p.unit, c.name, u.unit_name, ps.dimensions, ps.material, ps.color
+            ORDER BY current_stock DESC
+            LIMIT ?
+        """;
+        params.add(limit);
+
+        java.util.List<java.util.Map<String, Object>> rows = jdbcTemplate.queryForList(pSql, params.toArray());
+        java.util.List<ProductSearchItem> items = new java.util.ArrayList<>();
+
+        for (java.util.Map<String, Object> r : rows) {
+            Long pId = ((Number) r.get("id")).longValue();
+            String name = (String) r.get("name");
+            String sku = (String) r.get("sku_code");
+            String cat = (String) r.get("category_name");
+            String baseUnit = r.get("base_unit") != null ? (String) r.get("base_unit") : "Cái";
+            Double price = r.get("selling_price") instanceof Number ? ((Number) r.get("selling_price")).doubleValue() : 0.0;
+            Double currentStock = r.get("current_stock") instanceof Number ? ((Number) r.get("current_stock")).doubleValue() : 0.0;
+
+            // Lấy quy đổi đơn vị (cuộn -> mét, cây -> mét)
+            java.util.List<UnitConversionInfo> conversions = new java.util.ArrayList<>();
+            try {
+                String cSql = "SELECT packaging_unit, base_unit, conversion_rate FROM product_unit_conversions WHERE product_id = ?";
+                var cRows = jdbcTemplate.queryForList(cSql, pId);
+                for (var cr : cRows) {
+                    String pack = (String) cr.get("packaging_unit");
+                    String bUnit = (String) cr.get("base_unit");
+                    Double rate = cr.get("conversion_rate") instanceof Number ? ((Number) cr.get("conversion_rate")).doubleValue() : 1.0;
+                    Double stockInPack = rate > 0 ? (Math.round((currentStock / rate) * 100.0) / 100.0) : currentStock;
+                    conversions.add(new UnitConversionInfo(pack, bUnit, rate, stockInPack));
+                }
+            } catch (Exception ignored) {}
+
+            String spec = "";
+            if (r.get("dimensions") != null) spec += "Kích thước: " + r.get("dimensions") + "; ";
+            if (r.get("material") != null) spec += "Chất liệu: " + r.get("material") + "; ";
+            if (r.get("color") != null) spec += "Màu sắc: " + r.get("color");
+
+            items.add(new ProductSearchItem(pId, sku, name, cat, baseUnit, price, currentStock, conversions, spec.trim()));
+        }
+
+        var data = new SearchProductsData(query, items.size(), items);
+        return ResponseEntity.ok(ToolResponse.ok(storeId, data, true));
+    }
+
+    @PostMapping("/contractor-debts")
+    public ResponseEntity<ToolResponse<ContractorDebtsData>> getContractorDebts(
+        @RequestHeader(value = "X-Internal-Token", required = false) String token,
+        @RequestHeader(value = "X-Store-Id", required = false) String storeIdHeader,
+        @RequestBody(required = false) ContractorDebtsRequest req
+    ) {
+        Long storeId = validateAuthAndStore(token, storeIdHeader);
+        String status = req != null && req.status() != null ? req.status().toUpperCase() : "ALL";
+        int limit = (req != null && req.limit() != null) ? req.limit() : 10;
+
+        String sql = """
+            SELECT d.id as debt_id, d.customer_id, c.name as customer_name, c.phone,
+                   p.project_name, d.total_amount, d.paid_amount, d.remaining_amount,
+                   d.due_date, d.overdue_days, d.status, d.risk_level, d.notes
+            FROM partner_debts d
+            LEFT JOIN customers c ON d.customer_id = c.id
+            LEFT JOIN customer_projects p ON d.project_id = p.id
+            WHERE (? = 'ALL' OR UPPER(d.status) = ?)
+            ORDER BY d.remaining_amount DESC
+            LIMIT ?
+        """;
+
+        var rows = jdbcTemplate.queryForList(sql, status, status, limit);
+        java.util.List<ContractorDebtItem> debts = new java.util.ArrayList<>();
+        double totalRemaining = 0.0;
+
+        for (var r : rows) {
+            Long dId = ((Number) r.get("debt_id")).longValue();
+            Long cId = r.get("customer_id") instanceof Number ? ((Number) r.get("customer_id")).longValue() : 0L;
+            String cName = r.get("customer_name") != null ? (String) r.get("customer_name") : "Khách công trình";
+            String phone = (String) r.get("phone");
+            String projName = (String) r.get("project_name");
+            Double totalAmt = r.get("total_amount") instanceof Number ? ((Number) r.get("total_amount")).doubleValue() : 0.0;
+            Double paidAmt = r.get("paid_amount") instanceof Number ? ((Number) r.get("paid_amount")).doubleValue() : 0.0;
+            Double remAmt = r.get("remaining_amount") instanceof Number ? ((Number) r.get("remaining_amount")).doubleValue() : 0.0;
+            String dueDate = r.get("due_date") != null ? r.get("due_date").toString() : "";
+            Integer overdue = r.get("overdue_days") instanceof Number ? ((Number) r.get("overdue_days")).intValue() : 0;
+            String st = (String) r.get("status");
+            String risk = (String) r.get("risk_level");
+            String notes = (String) r.get("notes");
+
+            totalRemaining += remAmt;
+            debts.add(new ContractorDebtItem(dId, cId, cName, phone, projName, totalAmt, paidAmt, remAmt, dueDate, overdue, st, risk, notes));
+        }
+
+        var data = new ContractorDebtsData(debts.size(), totalRemaining, debts);
+        return ResponseEntity.ok(ToolResponse.ok(storeId, data, true));
+    }
+
+    @PostMapping("/sanitary-combo")
+    public ResponseEntity<ToolResponse<SanitaryComboData>> getSanitaryCombo(
+        @RequestHeader(value = "X-Internal-Token", required = false) String token,
+        @RequestHeader(value = "X-Store-Id", required = false) String storeIdHeader,
+        @RequestBody(required = false) SanitaryComboRequest req
+    ) {
+        Long storeId = validateAuthAndStore(token, storeIdHeader);
+        String color = req != null && req.color() != null ? req.color() : "Trắng tuyết";
+        String install = req != null && req.installation_type() != null ? req.installation_type() : "Đặt bàn";
+
+        java.util.List<TileAdvice> tiles = java.util.List.of(
+            new TileAdvice("Hiện đại & Sang trọng (Luxury Modern)", "Gạch Calacatta White 30x60 mờ (Vân mây xám)", "GM-CALA-60", 220000.0, "m2", "Vân đá marble xám khói trên nền trắng tạo chiều sâu tinh tế, tôn vinh độ bóng mịn của men sứ Aqua Ceramic."),
+            new TileAdvice("Tối giản Bắc Âu / Wabi-sabi (Minimalist)", "Gạch Terrazzo xám hạt mịn 60x60 chống trơn", "GM-TERRA-01", 260000.0, "m2", "Màu xám xi măng hạt muối tiêu tương phản nhẹ nhàng với chậu trắng, mang lại cảm giác mộc mạc và sạch sẽ."),
+            new TileAdvice("Điểm nhấn nghệ thuật (Accent Wall)", "Gạch thẻ Xanh Ngọc Lục Bảo 7.5x15", "GM-SUB-XANH", 340000.0, "m2", "Ốp điểm mảng tường sau gương tạo hiệu ứng thị giác nổi bật, làm chiếc lavabo trắng trở thành tâm điểm của phòng tắm.")
+        );
+
+        java.util.List<AccessoryFitting> accessories = java.util.List.of(
+            new AccessoryFitting("Vòi chậu nóng lạnh", "Vòi Lavabo nóng lạnh thân cao 30cm Đen mờ tĩnh điện", "TBVS-VOI-01", 720000.0, true, "Lavabo đặt bàn bắt buộc dùng vòi cổ cao. Tone đen nhám tạo nét tương phản hiện đại chuẩn xu hướng."),
+            new AccessoryFitting("Bộ xả xi-phông", "Bộ xả xi-phông thoát nước nhấn nắp sứ Trắng đồng bộ", "TBVS-XP-01", 190000.0, true, "Nắp xả sứ trắng hòa vào màu lòng chậu đồng bộ, đuôi chữ P bằng đồng chống tràn và ngăn hôi cống."),
+            new AccessoryFitting("Van góc & Dây cấp", "Cặp van góc Inox 304 kèm dây cấp chịu nhiệt 60cm", "TBVS-VG-01", 150000.0, true, "Phụ kiện đấu nối nước lạnh/nóng âm tường, bảo vệ vòi chậu và chống bục vỡ áp lực cao."),
+            new AccessoryFitting("Vật tư phụ chống ẩm", "Keo Silicone trung tính Apolo A500 Trắng sữa (Chống mốc)", "DN-KEO-APOLO", 60000.0, true, "Trám viền quanh đáy lavabo tiếp xúc mặt đá chống đọng nước và ố mốc chân chậu.")
+        );
+
+        double lavaboPrice = 1650000.0;
+        double accessoryTotal = accessories.stream().mapToDouble(AccessoryFitting::price).sum();
+        double originalTotal = lavaboPrice + accessoryTotal;
+        double discountComboTotal = Math.round(originalTotal * 0.95);
+        double savings = originalTotal - discountComboTotal;
+
+        var data = new SanitaryComboData(color, install, lavaboPrice, tiles, accessories, originalTotal, discountComboTotal, savings, "5%");
         return ResponseEntity.ok(ToolResponse.ok(storeId, data, true));
     }
 

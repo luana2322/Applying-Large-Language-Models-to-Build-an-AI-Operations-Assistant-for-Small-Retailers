@@ -8,7 +8,7 @@ type InlineToken =
 type Block =
   | { type: "paragraph"; text: string }
   | { type: "bullet_list"; items: string[] }
-  | { type: "ordered_list"; items: string[] }
+  | { type: "ordered_list"; startNumber: number; items: string[] }
   | { type: "code_block"; code: string; lang: string | null }
   | { type: "table"; headers: string[]; rows: string[][] }
 
@@ -43,7 +43,10 @@ function parseInline(text: string): InlineToken[] {
     if (kind === "strong") {
       const end = text.indexOf("**", next + 2)
       if (end === -1) {
-        tokens.push({ type: "text", value: text.slice(next) })
+        const remaining = text.slice(next + 2).trim()
+        if (remaining) {
+          tokens.push({ type: "strong", value: remaining })
+        }
         break
       }
       tokens.push({ type: "strong", value: text.slice(next + 2, end) })
@@ -105,16 +108,20 @@ function parseBlocks(text: string): Block[] {
       continue
     }
 
-    const orderedItems: string[] = []
-    while (i < lines.length) {
-      const ordered = lines[i].trim().match(/^\d+\.\s+(.+)$/)
-      if (!ordered) break
-      orderedItems.push(ordered[1].trim())
-      i += 1
-    }
-    if (orderedItems.length > 0) {
-      blocks.push({ type: "ordered_list", items: orderedItems })
-      continue
+    const firstOrdered = lines[i].trim().match(/^(\d+)\.\s+(.+)$/)
+    if (firstOrdered) {
+      const startNumber = parseInt(firstOrdered[1], 10) || 1
+      const orderedItems: string[] = []
+      while (i < lines.length) {
+        const ordered = lines[i].trim().match(/^\d+\.\s+(.+)$/)
+        if (!ordered) break
+        orderedItems.push(ordered[1].trim())
+        i += 1
+      }
+      if (orderedItems.length > 0) {
+        blocks.push({ type: "ordered_list", startNumber, items: orderedItems })
+        continue
+      }
     }
 
     // Markdown Table Detection
@@ -210,7 +217,7 @@ export const AiChatMessageText = memo(function AiChatMessageText({ text }: { tex
         }
         if (block.type === "ordered_list") {
           return (
-            <ol key={idx} className="list-decimal space-y-1.5 pl-5">
+            <ol key={idx} start={block.startNumber} className="list-decimal space-y-1.5 pl-5">
               {block.items.map((item, itemIdx) => (
                 <li key={itemIdx}>
                   <InlineText text={item} />
